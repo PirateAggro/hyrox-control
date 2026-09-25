@@ -27,9 +27,9 @@ export default async function ParticipantsPage() {
           {participants.map((p) => (
             <li
               key={p.id}
-              className={`flex items-center gap-3 p-3 ${p.active ? "" : "opacity-50"}`}
+              className={`flex flex-wrap items-center gap-x-3 gap-y-2 p-3 ${p.active ? "" : "opacity-50"}`}
             >
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-48">
                 <p className="font-medium">
                   {p.name}
                   {!p.active && (
@@ -38,23 +38,25 @@ export default async function ParticipantsPage() {
                 </p>
                 <p className="truncate text-sm text-muted">{p.email}</p>
               </div>
-              <Link
-                href={`/participants/${p.id}`}
-                className="text-sm underline"
-              >
-                Editar
-              </Link>
-              <form action={setParticipantActive}>
-                <input type="hidden" name="id" value={p.id} />
-                <input
-                  type="hidden"
-                  name="active"
-                  value={String(!p.active)}
-                />
-                <button className={`${buttonSecondary} h-9 px-3 text-sm`}>
-                  {p.active ? "Desactivar" : "Activar"}
-                </button>
-              </form>
+              <div className="ml-auto flex items-center gap-2">
+                <Link
+                  href={`/participants/${p.id}`}
+                  className="px-1 text-sm underline"
+                >
+                  Editar
+                </Link>
+                <form action={setParticipantActive}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input
+                    type="hidden"
+                    name="active"
+                    value={String(!p.active)}
+                  />
+                  <button className={`${buttonSecondary} h-9 px-3 text-sm`}>
+                    {p.active ? "Desactivar" : "Activar"}
+                  </button>
+                </form>
+              </div>
             </li>
           ))}
         </ul>

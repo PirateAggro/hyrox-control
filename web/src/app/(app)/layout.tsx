@@ -7,7 +7,6 @@ import { requireOperator } from "@/lib/auth";
 import { signOut } from "../login/actions";
 
 const NAV = [
-  { href: "/", text: "Inici" },
   { href: "/participants", text: "Participants" },
   { href: "/stations", text: "Estacions" },
 ];
@@ -23,7 +22,9 @@ export default async function AppLayout({
     <>
       <header className="border-b border-border">
         <nav className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3">
-          <span className="font-semibold">Hyrox Control</span>
+          <Link href="/" className="whitespace-nowrap font-semibold">
+            Hyrox Control
+          </Link>
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className="text-sm">
               {n.text}

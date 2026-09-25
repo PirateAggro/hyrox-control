@@ -3,10 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOperator } from "@/lib/auth";
-import { PG, parseStation, type FieldErrors } from "@/lib/validation";
+import {
+  PG,
+  formValues,
+  parseStation,
+  type FieldErrors,
+} from "@/lib/validation";
 
 export type FormState =
-  | { errors?: FieldErrors; message?: string; ok?: boolean }
+  | {
+      errors?: FieldErrors;
+      message?: string;
+      ok?: boolean;
+      values?: Record<string, string>;
+    }
   | undefined;
 
 // Índex únic parcial: dues estacions actives no poden compartir ordre, perquè
@@ -19,12 +29,20 @@ export async function createStation(
 ): Promise<FormState> {
   const { supabase } = await requireOperator();
   const { values, errors } = parseStation(formData);
-  if (Object.keys(errors).length) return { errors };
+  if (Object.keys(errors).length)
+    return { errors, values: formValues(formData) };
 
   const { error } = await supabase.from("stations").insert(values);
   if (error?.code === PG.uniqueViolation)
-    return { errors: { sort_order: ORDER_TAKEN } };
-  if (error) return { message: "No s'ha pogut crear l'estació." };
+    return {
+      errors: { sort_order: ORDER_TAKEN },
+      values: formValues(formData),
+    };
+  if (error)
+    return {
+      message: "No s'ha pogut crear l'estació.",
+      values: formValues(formData),
+    };
 
   revalidatePath("/stations");
   return { ok: true, message: `Estació "${values.name}" creada.` };
@@ -37,12 +55,20 @@ export async function updateStation(
 ): Promise<FormState> {
   const { supabase } = await requireOperator();
   const { values, errors } = parseStation(formData);
-  if (Object.keys(errors).length) return { errors };
+  if (Object.keys(errors).length)
+    return { errors, values: formValues(formData) };
 
   const { error } = await supabase.from("stations").update(values).eq("id", id);
   if (error?.code === PG.uniqueViolation)
-    return { errors: { sort_order: ORDER_TAKEN } };
-  if (error) return { message: "No s'ha pogut desar l'estació." };
+    return {
+      errors: { sort_order: ORDER_TAKEN },
+      values: formValues(formData),
+    };
+  if (error)
+    return {
+      message: "No s'ha pogut desar l'estació.",
+      values: formValues(formData),
+    };
 
   revalidatePath("/stations");
   redirect("/stations");

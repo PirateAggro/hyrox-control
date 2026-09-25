@@ -37,3 +37,15 @@ export const PG = {
   foreignKeyViolation: "23503",
   checkViolation: "23514",
 } as const;
+
+/**
+ * Valors enviats, per tornar-los al formulari quan hi ha un error. React 19
+ * buida el formulari després de cada action; els camps es tornen a omplir amb
+ * aquests valors via `defaultValue`.
+ */
+export function formValues(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of formData.entries())
+    if (typeof v === "string" && !k.startsWith("$")) out[k] = v;
+  return out;
+}

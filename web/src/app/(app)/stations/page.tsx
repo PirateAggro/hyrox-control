@@ -1,10 +1,6 @@
 import Link from "next/link";
 import { requireOperator } from "@/lib/auth";
-import {
-  createStation,
-  deleteStation,
-  setStationActive,
-} from "./actions";
+import { createStation, deleteStation, setStationActive } from "./actions";
 import { StationForm } from "./station-form";
 import { RowAction } from "@/components/row-action";
 import { errorText } from "@/components/ui";
@@ -43,38 +39,48 @@ export default async function StationsPage() {
           {stations.map((s) => (
             <li
               key={s.id}
-              className={`flex items-start gap-3 p-3 ${s.active ? "" : "opacity-50"}`}
+              className={`flex flex-wrap items-start gap-x-3 gap-y-2 p-3 ${s.active ? "" : "opacity-50"}`}
             >
-              <span className="w-6 pt-0.5 text-right font-mono text-muted">
-                {s.sort_order}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {s.name}
-                  {!s.active && (
-                    <span className="ml-2 text-xs text-muted">(inactiva)</span>
-                  )}
-                </p>
-                <p className="text-sm text-muted">
-                  {[s.distance, s.weight].filter(Boolean).join(" · ") || "—"}
-                </p>
+              {/* basis-48: en pantalles estretes els botons baixen a una segona línia. */}
+              <div className="flex min-w-0 flex-1 basis-48 gap-3">
+                <span className="w-6 pt-0.5 text-right font-mono text-muted">
+                  {s.sort_order}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    {s.name}
+                    {!s.active && (
+                      <span className="ml-2 text-xs text-muted">
+                        (inactiva)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted">
+                    {[s.distance, s.weight].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
               </div>
-              <Link href={`/stations/${s.id}`} className="pt-2 text-sm underline">
-                Editar
-              </Link>
-              <RowAction
-                action={setStationActive}
-                fields={{ id: s.id, active: String(!s.active) }}
-              >
-                {s.active ? "Desactivar" : "Activar"}
-              </RowAction>
-              <RowAction
-                action={deleteStation}
-                fields={{ id: s.id }}
-                confirmText={`Esborrar l'estació "${s.name}"?`}
-              >
-                Esborrar
-              </RowAction>
+              <div className="ml-auto flex items-start gap-2">
+                <Link
+                  href={`/stations/${s.id}`}
+                  className="px-1 pt-2 text-sm underline"
+                >
+                  Editar
+                </Link>
+                <RowAction
+                  action={setStationActive}
+                  fields={{ id: s.id, active: String(!s.active) }}
+                >
+                  {s.active ? "Desactivar" : "Activar"}
+                </RowAction>
+                <RowAction
+                  action={deleteStation}
+                  fields={{ id: s.id }}
+                  confirmText={`Esborrar l'estació "${s.name}"?`}
+                >
+                  Esborrar
+                </RowAction>
+              </div>
             </li>
           ))}
         </ul>

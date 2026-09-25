@@ -3,10 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOperator } from "@/lib/auth";
-import { PG, parseParticipant, type FieldErrors } from "@/lib/validation";
+import {
+  PG,
+  formValues,
+  parseParticipant,
+  type FieldErrors,
+} from "@/lib/validation";
 
 export type FormState =
-  | { errors?: FieldErrors; message?: string; ok?: boolean }
+  | {
+      errors?: FieldErrors;
+      message?: string;
+      ok?: boolean;
+      values?: Record<string, string>;
+    }
   | undefined;
 
 function uniqueNameMessage() {
@@ -20,12 +30,20 @@ export async function createParticipant(
 ): Promise<FormState> {
   const { supabase } = await requireOperator();
   const { values, errors } = parseParticipant(formData);
-  if (Object.keys(errors).length) return { errors };
+  if (Object.keys(errors).length)
+    return { errors, values: formValues(formData) };
 
   const { error } = await supabase.from("participants").insert(values);
   if (error?.code === PG.uniqueViolation)
-    return { errors: { name: uniqueNameMessage() } };
-  if (error) return { message: "No s'ha pogut crear el participant." };
+    return {
+      errors: { name: uniqueNameMessage() },
+      values: formValues(formData),
+    };
+  if (error)
+    return {
+      message: "No s'ha pogut crear el participant.",
+      values: formValues(formData),
+    };
 
   revalidatePath("/participants");
   return { ok: true, message: `Participant "${values.name}" creat.` };
@@ -38,15 +56,23 @@ export async function updateParticipant(
 ): Promise<FormState> {
   const { supabase } = await requireOperator();
   const { values, errors } = parseParticipant(formData);
-  if (Object.keys(errors).length) return { errors };
+  if (Object.keys(errors).length)
+    return { errors, values: formValues(formData) };
 
   const { error } = await supabase
     .from("participants")
     .update(values)
     .eq("id", id);
   if (error?.code === PG.uniqueViolation)
-    return { errors: { name: uniqueNameMessage() } };
-  if (error) return { message: "No s'ha pogut desar el participant." };
+    return {
+      errors: { name: uniqueNameMessage() },
+      values: formValues(formData),
+    };
+  if (error)
+    return {
+      message: "No s'ha pogut desar el participant.",
+      values: formValues(formData),
+    };
 
   revalidatePath("/participants");
   redirect("/participants");

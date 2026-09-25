@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState } from "react";
 import type { FormState } from "./actions";
 import { button, errorText, input, label } from "@/components/ui";
 
@@ -25,11 +25,9 @@ export function StationForm({
   submitLabel,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (state?.ok && !initial) formRef.current?.reset();
-  }, [state, initial]);
+  // Si hi ha hagut un error, els camps es tornen a omplir amb el que s'havia
+  // escrit (React buida el formulari després de cada enviament).
+  const v = state?.values;
 
   const fields = [
     { name: "name", text: "Nom", required: true, value: initial?.name },
@@ -45,7 +43,7 @@ export function StationForm({
   ];
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-3">
       {fields.map((f) => (
         <div key={f.name} className="flex flex-col gap-1.5">
           <label htmlFor={f.name} className={label}>
@@ -57,7 +55,7 @@ export function StationForm({
             type={f.type ?? "text"}
             min={f.type === "number" ? 1 : undefined}
             required={f.required}
-            defaultValue={f.value ?? ""}
+            defaultValue={v?.[f.name] ?? f.value ?? ""}
             className={input}
           />
           {state?.errors?.[f.name] && (

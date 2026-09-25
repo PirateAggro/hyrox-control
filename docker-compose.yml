@@ -1,0 +1,32 @@
+# Hyrox Control — desplegament a la Raspberry Pi.
+#
+# ⚠️ INDEPENDENT D'ARCHER. Tots dos projectes viuen a la mateixa Pi i no han de
+# compartir res:
+#  - `name:` fixa el nom del projecte de Compose. Sense ell, Compose l'agafa del
+#    nom de la carpeta, i dues carpetes amb el mateix nom barrejarien
+#    contenidors. Contenidors, xarxa i imatges queden prefixats `hyrox-control`.
+#  - Xarxa pròpia, sense `external:`: no s'uneix a la xarxa `archer`.
+#  - Port 3100 (Archer fa servir 3000 i 8000), publicat NOMÉS a 127.0.0.1:
+#    des de fora s'hi arriba pel proxy HTTPS, mai directament per la xarxa local.
+#  - Límit de memòria, perquè no li prengui recursos a Archer.
+
+name: hyrox-control
+
+services:
+  web:
+    build:
+      context: ./web
+      args:
+        HYROX_VERSION: ${HYROX_VERSION:-unknown}
+    # Claus de Supabase, llegides en arrencar. El fitxer `.env` és a l'arrel
+    # d'aquesta carpeta a la Pi i no es puja mai al git (veure .env.example).
+    env_file: .env
+    ports:
+      - "127.0.0.1:3100:3100"
+    mem_limit: 512m
+    restart: unless-stopped
+    networks:
+      - hyrox
+
+networks:
+  hyrox:

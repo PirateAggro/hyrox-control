@@ -8,29 +8,27 @@
  */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { supabaseConfig } from "@/lib/env";
 
 export async function createClient() {
   const cookieStore = await cookies();
+  const { url, anonKey } = supabaseConfig();
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
-          } catch {
-            // Des d'un Server Component les cookies són de només lectura.
-            // No passa res: `proxy.ts` renova la sessió a cada petició.
-          }
-        },
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options),
+          );
+        } catch {
+          // Des d'un Server Component les cookies són de només lectura.
+          // No passa res: `proxy.ts` renova la sessió a cada petició.
+        }
       },
     },
-  );
+  });
 }

@@ -6,18 +6,6 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "-p", "3100"],
       "port": 3100
-    },
-    {
-      "name": "web-sense-supabase",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "--yes",
-        "cross-env",
-        "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:9",
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder",
-        "npm", "--prefix", "web", "run", "dev", "--", "-p", "3101"
-      ],
-      "port": 3101
     }
   ]
 }

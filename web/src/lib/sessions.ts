@@ -8,6 +8,8 @@ export type LoadedSession = {
   mode: "individual" | "team";
   startedAt: string;
   closedAt: string | null;
+  emailSentAt: string | null;
+  emailError: string | null;
   ctx: SessionContext;
   participantNames: Record<string, string>;
   stationNames: Record<string, string>;
@@ -49,7 +51,9 @@ export async function loadSession(
 ): Promise<LoadedSession | null> {
   const { data: s } = await supabase
     .from("sessions")
-    .select("id, mode, started_at, closed_at, station_ids")
+    .select(
+      "id, mode, started_at, closed_at, station_ids, email_sent_at, email_error",
+    )
     .eq("id", id)
     .maybeSingle();
   if (!s) return null;
@@ -78,6 +82,8 @@ export async function loadSession(
     mode: s.mode,
     startedAt: s.started_at,
     closedAt: s.closed_at,
+    emailSentAt: s.email_sent_at,
+    emailError: s.email_error,
     ctx: {
       participants: participants.map((p) => p.id),
       stations: s.station_ids,

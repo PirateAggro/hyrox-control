@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireOperator } from "@/lib/auth";
 import { loadSession } from "@/lib/sessions";
 import {
@@ -9,6 +11,7 @@ import {
   type Press,
 } from "@/lib/timing/engine";
 import { PG } from "@/lib/validation";
+import { sendSessionEmail } from "@/lib/email";
 
 /**
  * Resultat d'una pulsació.
@@ -84,7 +87,28 @@ export async function press(
       message: "No s'ha pogut guardar la pulsació.",
     };
 
+  // 01 §1: en acabar, s'envia el correu als participants. Després de
+  // respondre, perquè l'operador no hagi d'esperar Gmail; si falla, la sessió
+  // continua completada i l'error queda a sessions.email_error.
+  if (p.kind === "FINISHED")
+    after(async () => {
+      const r = await sendSessionEmail(sessionId);
+      if (!r.ok) console.error(`Correu de la sessió ${sessionId}:`, r.error);
+    });
+
   return { ok: true, presses: [...s.presses, p], serverNow: Date.now() };
+}
+
+/** Torna a enviar el correu d'una sessió completada (si ha fallat). */
+export async function resendEmail(
+  sessionId: string,
+): Promise<{ message: string; ok: boolean }> {
+  await requireOperator();
+  const r = await sendSessionEmail(sessionId);
+  revalidatePath(`/control/${sessionId}`);
+  return r.ok
+    ? { ok: true, message: `Correu enviat a ${r.sent} participant(s).` }
+    : { ok: false, message: r.error ?? "No s'ha pogut enviar." };
 }
 
 /** Desfà l'última pulsació. No es pot un cop acabada la sessió. */

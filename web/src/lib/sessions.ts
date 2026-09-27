@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Press, PressKind, SessionContext } from "@/lib/timing/engine";
 
+/** Estat del correu per participant (sessions.email_log). */
+export type EmailLog = Record<
+  string,
+  { sentAt: string | null; error: string | null }
+>;
+
 export type SessionStatus = "en curs" | "completada" | "interrompuda";
 
 export type LoadedSession = {
@@ -10,6 +16,7 @@ export type LoadedSession = {
   closedAt: string | null;
   emailSentAt: string | null;
   emailError: string | null;
+  emailLog: EmailLog;
   ctx: SessionContext;
   participantNames: Record<string, string>;
   stationNames: Record<string, string>;
@@ -54,7 +61,7 @@ export async function loadSession(
   const { data: s } = await supabase
     .from("sessions")
     .select(
-      "id, mode, started_at, closed_at, station_ids, email_sent_at, email_error",
+      "id, mode, started_at, closed_at, station_ids, email_sent_at, email_error, email_log",
     )
     .eq("id", id)
     .maybeSingle();
@@ -89,6 +96,7 @@ export async function loadSession(
     closedAt: s.closed_at,
     emailSentAt: s.email_sent_at,
     emailError: s.email_error,
+    emailLog: (s.email_log as EmailLog) ?? {},
     ctx: {
       participants: participants.map((p) => p.id),
       stations: s.station_ids,

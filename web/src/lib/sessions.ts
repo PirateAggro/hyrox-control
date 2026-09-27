@@ -13,6 +13,8 @@ export type LoadedSession = {
   ctx: SessionContext;
   participantNames: Record<string, string>;
   stationNames: Record<string, string>;
+  /** "1000 m - 25 kg": distància i pes del mestre d'estacions (buit si no n'hi ha). */
+  stationDetails: Record<string, string>;
   presses: Press[];
   status: SessionStatus;
 };
@@ -64,7 +66,10 @@ export async function loadSession(
       .select("position, participants(id, name)")
       .eq("session_id", id)
       .order("position"),
-    supabase.from("stations").select("id, name").in("id", s.station_ids),
+    supabase
+      .from("stations")
+      .select("id, name, distance, weight")
+      .in("id", s.station_ids),
     supabase
       .from("presses")
       .select("seq, kind, participant_id, station_id, pressed_at")
@@ -92,6 +97,12 @@ export async function loadSession(
       participants.map((p) => [p.id, p.name]),
     ),
     stationNames: Object.fromEntries((st ?? []).map((x) => [x.id, x.name])),
+    stationDetails: Object.fromEntries(
+      (st ?? []).map((x) => [
+        x.id,
+        [x.distance, x.weight].filter(Boolean).join(" - "),
+      ]),
+    ),
     presses,
     status: statusOf(presses, s.closed_at),
   };

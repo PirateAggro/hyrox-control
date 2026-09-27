@@ -111,32 +111,6 @@ export async function resendEmail(
     : { ok: false, message: r.error ?? "No s'ha pogut enviar." };
 }
 
-/** Desfà l'última pulsació. No es pot un cop acabada la sessió. */
-export async function undo(sessionId: string): Promise<PressResult> {
-  const { supabase } = await requireOperator();
-  const s = await loadSession(supabase, sessionId);
-  if (!s) return { ok: false, reason: "failed", message: "Sessió no trobada." };
-  if (s.status !== "en curs")
-    return {
-      ok: false,
-      reason: "closed",
-      message: `La sessió està ${s.status}.`,
-    };
-  const last = s.presses.at(-1);
-  if (!last)
-    return { ok: false, reason: "invalid", message: "No hi ha res a desfer." };
-
-  const { error } = await supabase
-    .from("presses")
-    .delete()
-    .eq("session_id", sessionId)
-    .eq("seq", last.seq);
-  if (error)
-    return { ok: false, reason: "failed", message: "No s'ha pogut desfer." };
-
-  return { ok: true, presses: s.presses.slice(0, -1), serverNow: Date.now() };
-}
-
 /**
  * 01 §1: si es torna a entrar a una sessió ja començada (recàrrega, tancar el
  * navegador, sortir i tornar), la sessió es tanca com a interrompuda.

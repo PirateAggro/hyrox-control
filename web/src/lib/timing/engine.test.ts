@@ -59,8 +59,16 @@ test("§5 exemple d'equip: 2 usuaris, 8 proves, sense CHANGE STATION", () => {
   for (let i = 0; i < 8; i++) {
     const n = i + 1;
     const st = S[i];
-    assert.equal(sec(totals.participantStation.U1[st]), 10 * n, `U1 prova ${n}`);
-    assert.equal(sec(totals.participantStation.U2[st]), 20 * n, `U2 prova ${n}`);
+    assert.equal(
+      sec(totals.participantStation.U1[st]),
+      10 * n,
+      `U1 prova ${n}`,
+    );
+    assert.equal(
+      sec(totals.participantStation.U2[st]),
+      20 * n,
+      `U2 prova ${n}`,
+    );
     assert.equal(sec(totals.teamStation[st]), 30 * n, `Equip prova ${n}`);
     if (n < 8) {
       assert.equal(sec(totals.transition[st]), 3, `Transició ${n}`);
@@ -206,7 +214,9 @@ test("HYROX FINISHED a mitja sessió: s'acaba a la prova on s'està", () => {
 });
 
 test("després de HYROX FINISHED no es pot prémer res", () => {
-  const x = session(team).press({ kind: "START" }).press({ kind: "FINISHED" }, 5);
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "FINISHED" }, 5);
   for (const action of [
     { kind: "START" },
     { kind: "SWITCH", participantId: "U2" },
@@ -217,9 +227,15 @@ test("després de HYROX FINISHED no es pot prémer res", () => {
 
 test("no es pot canviar al mateix participant ni durant una TRANSITION", () => {
   const x = session(team).press({ kind: "START" });
-  assert.throws(() => x.press({ kind: "SWITCH", participantId: "U1" }), InvalidPress);
+  assert.throws(
+    () => x.press({ kind: "SWITCH", participantId: "U1" }),
+    InvalidPress,
+  );
   x.press({ kind: "TRANSITION" }, 5);
-  assert.throws(() => x.press({ kind: "SWITCH", participantId: "U2" }), InvalidPress);
+  assert.throws(
+    () => x.press({ kind: "SWITCH", participantId: "U2" }),
+    InvalidPress,
+  );
 });
 
 test("pulsacions fora d'ordre o amb l'hora enrere es rebutgen", () => {
@@ -250,8 +266,8 @@ test("cronòmetres en directe: el tram obert es compta fins a ara", () => {
 
 test("invariant: total = proves + transicions + runs, en 500 sessions a l'atzar", () => {
   let seed = 42;
-  const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
-  const pick = <T,>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
+  const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+  const pick = <T>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
 
   for (let run = 0; run < 500; run++) {
     const ctx = run % 3 === 0 ? solo : team;
@@ -259,13 +275,17 @@ test("invariant: total = proves + transicions + runs, en 500 sessions a l'atzar"
     for (let step = 0; step < 60; step++) {
       const a = allowedActions(x.result().state, ctx);
       const options: Action[] = [
-        ...a.switchTo.map((p) => ({ kind: "SWITCH", participantId: p }) as Action),
+        ...a.switchTo.map(
+          (p) => ({ kind: "SWITCH", participantId: p }) as Action,
+        ),
         ...(a.transition ? [{ kind: "TRANSITION" } as Action] : []),
         ...(a.run ? [{ kind: "RUN" } as Action] : []),
         ...(a.next ? [{ kind: "NEXT_STATION" } as Action] : []),
         ...(a.change
           ? [{ kind: "CHANGE_STATION", stationId: pick(S) } as Action]
           : []),
+        ...(a.pause && rand() < 0.2 ? [{ kind: "PAUSE" } as Action] : []),
+        ...(a.resume ? [{ kind: "RESUME" } as Action] : []),
         ...(a.finish && rand() < 0.05 ? [{ kind: "FINISHED" } as Action] : []),
       ];
       if (options.length === 0) break;
@@ -284,4 +304,77 @@ test("invariant: total = proves + transicions + runs, en 500 sessions a l'atzar"
       assert.equal(t.teamStation[st], parts, `sessió ${run}, ${st}`);
     }
   }
+});
+
+test("PAUSA atura tots els comptadors, i CONTINUAR torna on era", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "SWITCH", participantId: "U2" }, 10)
+    .press({ kind: "PAUSE" }, 5) // U2 ha fet 5 s
+    .press({ kind: "RESUME" }, 300); // 5 minuts de pausa: no compten
+  const { state } = x.result();
+  assert.equal(state.phase, "station");
+  assert.equal(state.participantId, "U2", "continua el mateix participant");
+  assert.equal(state.stationId, "S1");
+  x.press({ kind: "TRANSITION" }, 7);
+  const { totals } = x.result();
+  assert.equal(sec(totals.participantStation.U2.S1), 5 + 7);
+  assert.equal(sec(totals.teamStation.S1), 10 + 5 + 7);
+  assert.equal(sec(totals.total), 22, "la pausa no compta al total");
+});
+
+test("PAUSA durant un RUN: en continuar, torna al RUN", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "RUN" }, 10)
+    .press({ kind: "PAUSE" }, 20)
+    .press({ kind: "RESUME" }, 60)
+    .press({ kind: "NEXT_STATION" }, 15);
+  const { totals } = x.result();
+  assert.equal(sec(totals.run.S1), 35);
+  assert.equal(sec(totals.total), 45);
+});
+
+test("en pausa només es pot continuar o acabar; el rellotge en directe no avança", () => {
+  const x = session(team).press({ kind: "START" }).press({ kind: "PAUSE" }, 10);
+  const a = allowedActions(x.result().state, team);
+  assert.deepEqual(
+    [
+      a.resume,
+      a.finish,
+      a.transition,
+      a.run,
+      a.next,
+      a.change,
+      a.pause,
+      a.switchTo.length,
+    ],
+    [true, true, false, false, false, false, false, 0],
+  );
+  for (const action of [
+    { kind: "SWITCH", participantId: "U2" },
+    { kind: "TRANSITION" },
+    { kind: "PAUSE" },
+  ] as Action[])
+    assert.throws(() => x.press(action, 1), InvalidPress);
+  const lastAt = x.presses.at(-1)!.at;
+  assert.equal(sec(x.result(lastAt + 60_000).totals.total), 10);
+  // Acabar en pausa: completada, sense afegir el temps de pausa.
+  x.press({ kind: "FINISHED" }, 30);
+  assert.equal(x.result().state.phase, "finished");
+  assert.equal(sec(x.result().totals.total), 10);
+});
+
+test("CONTINUAR sense pausa, o pausar abans de START, es rebutja", () => {
+  const idle = session(team);
+  assert.throws(() => idle.press({ kind: "PAUSE" }), InvalidPress);
+  const x = session(team).press({ kind: "START" });
+  assert.throws(() => x.press({ kind: "RESUME" }, 1), InvalidPress);
+});
+
+test("a l'última prova també es pot pausar", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "CHANGE_STATION", stationId: "S8" }, 5);
+  assert.equal(allowedActions(x.result().state, team).pause, true);
 });

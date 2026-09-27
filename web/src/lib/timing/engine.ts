@@ -23,6 +23,10 @@
  * Tornar a una estació ja feta (CHANGE STATION enrere) acumula els temps sota
  * la mateixa clau.
  *
+ * PAUSA atura tots els comptadors: tanca el tram obert i no n'obre cap fins a
+ * RESUME, que en torna a obrir un de la mateixa fase, estació i participant. El
+ * temps de pausa no compta enlloc, ni al total: el total és la suma de trams.
+ *
  * Cada pulsació porta l'estació i el participant on comença el tram nou, així
  * que l'històric es pot recalcular encara que després es canviï l'ordre de les
  * estacions.
@@ -35,6 +39,8 @@ export type PressKind =
   | "RUN"
   | "NEXT_STATION"
   | "CHANGE_STATION"
+  | "PAUSE"
+  | "RESUME"
   | "FINISHED";
 
 export type Press = {
@@ -65,6 +71,8 @@ export type State = {
   startedAt: number | null;
   segmentStart: number | null;
   finishedAt: number | null;
+  /** En pausa: cap tram obert fins a RESUME. */
+  paused: boolean;
   lastSeq: number;
   lastAt: number | null;
 };
@@ -79,7 +87,7 @@ export type Totals = {
   run: ByKey;
   /** Estacions en l'ordre en què s'han visitat per primer cop. */
   stationOrder: string[];
-  /** Temps total de la sessió. */
+  /** Temps total de la sessió: suma de tots els trams (sense pauses). */
   total: number;
 };
 
@@ -98,6 +106,7 @@ const INITIAL: State = {
   startedAt: null,
   segmentStart: null,
   finishedAt: null,
+  paused: false,
   lastSeq: 0,
   lastAt: null,
 };
@@ -146,19 +155,28 @@ export function allowedActions(state: State, ctx: SessionContext) {
     run: false,
     next: false,
     change: false,
+    pause: false,
+    resume: false,
     finish: false,
   };
+  // En pausa només es pot continuar o acabar.
+  if (state.paused) return { ...none, resume: true, finish: true };
   switch (state.phase) {
     case "idle":
-      return { ...none, start: ctx.stations.length > 0 && ctx.participants.length > 0 };
+      return {
+        ...none,
+        start: ctx.stations.length > 0 && ctx.participants.length > 0,
+      };
     case "finished":
       return none;
     case "station": {
-      const switchTo = ctx.participants.filter((p) => p !== state.participantId);
+      const switchTo = ctx.participants.filter(
+        (p) => p !== state.participantId,
+      );
       // §5: a l'última prova només HYROX FINISHED (i, en equip, canviar de
       // participant).
       if (isLastStation(state.stationId, ctx))
-        return { ...none, switchTo, finish: true };
+        return { ...none, switchTo, pause: true, finish: true };
       const hasNext = nextStationAfter(state.stationId, ctx) !== null;
       return {
         ...none,
@@ -167,6 +185,7 @@ export function allowedActions(state: State, ctx: SessionContext) {
         run: true,
         next: hasNext,
         change: true,
+        pause: true,
         finish: true,
       };
     }
@@ -176,6 +195,7 @@ export function allowedActions(state: State, ctx: SessionContext) {
         run: true,
         next: nextStationAfter(state.stationId, ctx) !== null,
         change: true,
+        pause: true,
         finish: true,
       };
     case "run":
@@ -184,6 +204,7 @@ export function allowedActions(state: State, ctx: SessionContext) {
         ...none,
         next: nextStationAfter(state.stationId, ctx) !== null,
         change: true,
+        pause: true,
         finish: true,
       };
   }
@@ -239,20 +260,37 @@ export function applyPress(
       };
 
     case "SWITCH":
-      if (!press.participantId || !allowed.switchTo.includes(press.participantId))
+      if (
+        !press.participantId ||
+        !allowed.switchTo.includes(press.participantId)
+      )
         fail("canvi de participant no permès");
       closeSegment(state, totals, press.at);
-      return { ...base, participantId: press.participantId!, segmentStart: press.at };
+      return {
+        ...base,
+        participantId: press.participantId!,
+        segmentStart: press.at,
+      };
 
     case "TRANSITION":
       if (!allowed.transition) fail("TRANSITION no està permès ara");
       closeSegment(state, totals, press.at);
-      return { ...base, phase: "transition", participantId: null, segmentStart: press.at };
+      return {
+        ...base,
+        phase: "transition",
+        participantId: null,
+        segmentStart: press.at,
+      };
 
     case "RUN":
       if (!allowed.run) fail("RUN no està permès ara");
       closeSegment(state, totals, press.at);
-      return { ...base, phase: "run", participantId: null, segmentStart: press.at };
+      return {
+        ...base,
+        phase: "run",
+        participantId: null,
+        segmentStart: press.at,
+      };
 
     case "NEXT_STATION": {
       if (!allowed.next) fail("NEXT STATION no està permès ara");
@@ -268,6 +306,16 @@ export function applyPress(
       closeSegment(state, totals, press.at);
       return enterStation(press.stationId);
 
+    case "PAUSE":
+      if (!allowed.pause) fail("PAUSA no està permès ara");
+      closeSegment(state, totals, press.at);
+      return { ...base, paused: true, segmentStart: null };
+
+    case "RESUME":
+      if (!allowed.resume) fail("CONTINUAR no està permès ara");
+      // Torna a la mateixa fase, estació i participant d'abans de la pausa.
+      return { ...base, paused: false, segmentStart: press.at };
+
     case "FINISHED":
       if (!allowed.finish) fail("HYROX FINISHED no està permès ara");
       closeSegment(state, totals, press.at);
@@ -275,6 +323,7 @@ export function applyPress(
         ...base,
         phase: "finished",
         participantId: null,
+        paused: false,
         segmentStart: null,
         finishedAt: press.at,
       };
@@ -296,11 +345,10 @@ export function replay(presses: Press[], ctx: SessionContext, now?: number) {
   if (now !== undefined && state.phase !== "idle" && state.phase !== "finished")
     closeSegment(state, totals, Math.max(now, state.segmentStart ?? now));
 
-  if (state.startedAt !== null)
-    totals.total =
-      (state.finishedAt ??
-        (now !== undefined ? Math.max(now, state.lastAt ?? now) : state.lastAt!)) -
-      state.startedAt;
+  // Suma de trams: el temps en pausa no hi és.
+  const sum = (m: ByKey) => Object.values(m).reduce((a, b) => a + b, 0);
+  totals.total =
+    sum(totals.teamStation) + sum(totals.transition) + sum(totals.run);
 
   return { state, totals };
 }
@@ -317,6 +365,8 @@ export type Action =
   | { kind: "RUN" }
   | { kind: "NEXT_STATION" }
   | { kind: "CHANGE_STATION"; stationId: string }
+  | { kind: "PAUSE" }
+  | { kind: "RESUME" }
   | { kind: "FINISHED" };
 
 export function buildPress(

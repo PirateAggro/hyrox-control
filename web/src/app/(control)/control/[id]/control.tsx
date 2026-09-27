@@ -8,12 +8,44 @@ import {
   replay,
   type Action,
   type Press,
+  type PressKind,
 } from "@/lib/timing/engine";
 import { formatDuration } from "@/lib/timing/summary";
 import { clock } from "@/lib/clock";
+import { beep } from "@/lib/beep";
 import type { LoadedSession } from "@/lib/sessions";
 import { SessionSummary } from "@/components/session-summary";
-import { closeSession, press, undo, type PressResult } from "./actions";
+import { closeSession, press, type PressResult } from "./actions";
+
+/**
+ * Colors del sistema d'Apple per als cinc botons. `tint` és el fons suau que
+ * pren la pantalla quan és l'últim botó premut.
+ */
+const COLORS = {
+  TRANSITION: { solid: "#FF9500", text: "#fff" },
+  RUN: { solid: "#34C759", text: "#fff" },
+  NEXT_STATION: { solid: "#007AFF", text: "#fff" },
+  CHANGE_STATION: { solid: "#5856D6", text: "#fff" },
+  PAUSE: { solid: "#8E8E93", text: "#fff" },
+  RESUME: { solid: "#FFCC00", text: "#000" },
+} as const;
+
+/**
+ * Color de fons segons l'últim dels cinc botons premut. Els canvis de
+ * participant no el canvien; CONTINUAR torna el color d'abans de la pausa.
+ */
+function backgroundKind(presses: Press[]) {
+  let current: PressKind | null = null;
+  let beforePause: PressKind | null = null;
+  for (const p of presses) {
+    if (p.kind === "PAUSE") {
+      beforePause = current;
+      current = "PAUSE";
+    } else if (p.kind === "RESUME") current = beforePause;
+    else if (p.kind in COLORS) current = p.kind;
+  }
+  return current as keyof typeof COLORS | null;
+}
 
 const PHASE_LABEL = {
   idle: "Preparats",
@@ -23,8 +55,8 @@ const PHASE_LABEL = {
   finished: "Acabat",
 } as const;
 
-const big =
-  "h-16 rounded-lg text-lg font-semibold disabled:opacity-30 active:scale-[0.98] transition";
+const bigButton =
+  "flex h-14 w-full items-center justify-center rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:opacity-30";
 
 export function Control({
   session,
@@ -34,7 +66,12 @@ export function Control({
   serverNow: number;
 }) {
   const router = useRouter();
-  const { ctx, participantNames: pName, stationNames: sName } = session;
+  const {
+    ctx,
+    participantNames: pName,
+    stationNames: sName,
+    stationDetails,
+  } = session;
 
   const [presses, setPresses] = useState<Press[]>(session.presses);
   // Desfasament entre el rellotge del servidor (hora de les pulsacions) i el
@@ -65,12 +102,12 @@ export function Control({
 
   // Cronòmetres en directe.
   useEffect(() => {
-    if (!running) return;
+    if (!running || state.paused) return;
     const t = setInterval(() => setTick(Date.now()), 250);
     return () => clearInterval(t);
-  }, [running]);
+  }, [running, state.paused]);
 
-  // 01 §1: la pantalla es manté encesa durant la sessió.
+  // 01 §1: la pantalla es manté encesa durant la sessió (també en pausa).
   useEffect(() => {
     if (!running || !("wakeLock" in navigator)) return;
     let lock: WakeLockSentinel | null = null;
@@ -88,6 +125,19 @@ export function Control({
       lock?.release().catch(() => {});
     };
   }, [running]);
+
+  // El fons de tota la pantalla pren un to suau del color de l'últim botó.
+  const bg = offline ? null : backgroundKind(presses);
+  useEffect(() => {
+    const body = document.body.style;
+    body.transition = "background-color 300ms ease";
+    body.backgroundColor = bg
+      ? `color-mix(in srgb, ${COLORS[bg].solid} 14%, var(--background))`
+      : "";
+    return () => {
+      body.backgroundColor = "";
+    };
+  }, [bg]);
 
   async function act(call: () => Promise<PressResult>) {
     if (pending || offline) return;
@@ -116,6 +166,12 @@ export function Control({
   }
 
   const send = (action: Action) => act(() => press(session.id, action));
+  /** Els cinc botons i START fan un bip en prémer-los. */
+  const sendWithBeep = (action: Action) => {
+    if (pending) return;
+    beep();
+    send(action);
+  };
 
   if (reentered)
     return <p className="py-10 text-center text-muted">Tancant la sessió…</p>;
@@ -123,7 +179,7 @@ export function Control({
   if (offline)
     return (
       <div className="flex flex-col gap-4">
-        <div role="alert" className="rounded-lg bg-danger p-4 text-white">
+        <div role="alert" className="rounded-2xl bg-danger p-4 text-white">
           <p className="text-lg font-semibold">Sense connexió</p>
           <p className="text-sm">
             L&apos;última pulsació no s&apos;ha pogut guardar i la sessió
@@ -131,7 +187,7 @@ export function Control({
           </p>
         </div>
         <SessionSummary session={{ ...session, presses }} />
-        <Link href="/" className="text-center underline">
+        <Link href="/" className="text-center text-[#007AFF]">
           Tornar a l&apos;inici
         </Link>
       </div>
@@ -154,7 +210,7 @@ export function Control({
   if (state.phase === "idle")
     return (
       <div className="flex flex-col gap-6 pt-4">
-        <div>
+        <div className="rounded-2xl bg-[#f2f2f7] p-4 dark:bg-[#1c1c1e]">
           <p className="text-sm text-muted">
             {session.mode === "team" ? "Mode Equip" : "Mode Individual"}
           </p>
@@ -167,48 +223,97 @@ export function Control({
             ))}
           </ol>
         </div>
-        <p>
+        <p className="px-1">
           Primera prova: <strong>{sName[ctx.stations[0]]}</strong>
+          {stationDetails[ctx.stations[0]] && (
+            <span className="text-muted">
+              {" "}
+              · {stationDetails[ctx.stations[0]]}
+            </span>
+          )}
         </p>
         <button
-          onClick={() => send({ kind: "START" })}
+          onClick={() => sendWithBeep({ kind: "START" })}
           disabled={pending || !allowed.start}
-          className={`${big} h-24 bg-accent text-2xl text-black`}
+          className={`${bigButton} h-24 bg-[#FFCC00] text-3xl text-black`}
         >
           START
         </button>
         {message && <p className="text-sm text-danger">{message}</p>}
-        <Link href="/" className="text-center text-sm text-muted underline">
+        <Link href="/" className="text-center text-sm text-[#007AFF]">
           Cancel·lar
         </Link>
       </div>
     );
 
-  return (
-    <div className="flex flex-col gap-4">
-      <header className="flex items-baseline justify-between">
-        <span className="text-sm text-muted">Total Hyrox</span>
-        <span className="font-mono text-3xl font-bold tabular-nums">
-          {formatDuration(totals.total)}
-        </span>
-      </header>
+  const coloredButtons: {
+    kind: "TRANSITION" | "RUN" | "NEXT_STATION" | "CHANGE_STATION";
+    label: string;
+    enabled: boolean;
+    onPress: () => void;
+  }[] = [
+    {
+      kind: "TRANSITION",
+      label: "TRANSITION",
+      enabled: allowed.transition,
+      onPress: () => sendWithBeep({ kind: "TRANSITION" }),
+    },
+    {
+      kind: "RUN",
+      label: "RUN",
+      enabled: allowed.run,
+      onPress: () => sendWithBeep({ kind: "RUN" }),
+    },
+    {
+      kind: "NEXT_STATION",
+      label: "NEXT STATION",
+      enabled: allowed.next,
+      onPress: () => sendWithBeep({ kind: "NEXT_STATION" }),
+    },
+    {
+      kind: "CHANGE_STATION",
+      label: "CHANGE STATION",
+      enabled: allowed.change,
+      onPress: () => {
+        beep();
+        setModal("change");
+      },
+    },
+  ];
+  const pauseKind = state.paused ? "RESUME" : "PAUSE";
 
-      <section className="rounded-lg border border-border p-4">
-        <p className="text-sm text-muted">
-          {stationIndex}/{ctx.stations.length} · {PHASE_LABEL[state.phase]}
-        </p>
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="min-w-0 truncate text-2xl font-semibold">
-            {st ? sName[st] : ""}
-          </h1>
-          <span className="font-mono text-4xl font-bold tabular-nums">
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Cronòmetres: total i fase actual. */}
+      <section className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-black/5 p-3 dark:bg-white/10">
+          <p className="text-xs text-muted">Total</p>
+          <p className="font-mono text-3xl font-semibold tabular-nums">
+            {formatDuration(totals.total)}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-black/5 p-3 dark:bg-white/10">
+          <p className="text-xs text-muted">
+            {state.paused ? "En pausa" : PHASE_LABEL[state.phase]}
+          </p>
+          <p className="font-mono text-3xl font-semibold tabular-nums">
             {formatDuration(phaseTime ?? 0)}
-          </span>
+          </p>
         </div>
       </section>
 
-      {/* Participants: tocar-ne un el fa actiu a l'estació (§5). */}
-      <section className="flex flex-col gap-2">
+      {/* Estació, distància i pes en una sola línia. */}
+      <p className="truncate px-1 text-lg">
+        <span className="font-semibold">
+          {stationIndex} · {st ? sName[st] : ""}
+        </span>
+        {st && stationDetails[st] && (
+          <span className="text-muted"> · {stationDetails[st]}</span>
+        )}
+      </p>
+
+      {/* Participants, un sota l'altre: tocar-ne un el fa actiu (§5). */}
+      <section className="flex flex-col gap-1.5">
         {ctx.participants.map((p) => {
           const active = state.phase === "station" && state.participantId === p;
           const ms = st ? (totals.participantStation[p]?.[st] ?? 0) : 0;
@@ -217,10 +322,10 @@ export function Control({
               key={p}
               onClick={() => send({ kind: "SWITCH", participantId: p })}
               disabled={pending || !allowed.switchTo.includes(p)}
-              className={`flex h-14 items-center justify-between rounded-lg border px-4 text-lg ${
+              className={`flex h-12 items-center justify-between rounded-xl bg-white/80 px-4 text-lg dark:bg-white/10 ${
                 active
-                  ? "border-accent bg-accent/20 font-semibold disabled:opacity-100"
-                  : "border-border disabled:opacity-40"
+                  ? "border-2 border-[#34C759] font-semibold disabled:opacity-100"
+                  : "border border-black/10 disabled:opacity-50 dark:border-white/15"
               }`}
             >
               <span>{pName[p]}</span>
@@ -232,55 +337,46 @@ export function Control({
         })}
       </section>
 
-      <section className="grid grid-cols-2 gap-2">
+      {/* Els cinc botons, a tota l'amplada i cadascun d'un color. */}
+      <section className="mt-1 flex flex-col gap-2">
+        {coloredButtons.map((b) => (
+          <button
+            key={b.kind}
+            onClick={b.onPress}
+            disabled={pending || !b.enabled}
+            className={bigButton}
+            style={{
+              backgroundColor: COLORS[b.kind].solid,
+              color: COLORS[b.kind].text,
+            }}
+          >
+            {b.label}
+          </button>
+        ))}
         <button
-          onClick={() => send({ kind: "TRANSITION" })}
-          disabled={pending || !allowed.transition}
-          className={`${big} border border-border`}
+          onClick={() =>
+            sendWithBeep({ kind: state.paused ? "RESUME" : "PAUSE" })
+          }
+          disabled={pending || !(allowed.pause || allowed.resume)}
+          className={bigButton}
+          style={{
+            backgroundColor: COLORS[pauseKind].solid,
+            color: COLORS[pauseKind].text,
+          }}
         >
-          TRANSITION
-        </button>
-        <button
-          onClick={() => send({ kind: "RUN" })}
-          disabled={pending || !allowed.run}
-          className={`${big} border border-border`}
-        >
-          RUN
-        </button>
-        <button
-          onClick={() => send({ kind: "NEXT_STATION" })}
-          disabled={pending || !allowed.next}
-          className={`${big} bg-foreground text-background`}
-        >
-          NEXT STATION
-        </button>
-        <button
-          onClick={() => setModal("change")}
-          disabled={pending || !allowed.change}
-          className={`${big} border border-border`}
-        >
-          CHANGE STATION
+          {state.paused ? "▶  CONTINUAR" : "❚❚  PAUSA"}
         </button>
       </section>
 
       {message && <p className="text-sm text-danger">{message}</p>}
 
-      <section className="mt-2 grid grid-cols-[1fr_2fr] gap-2">
-        <button
-          onClick={() => act(() => undo(session.id))}
-          disabled={pending || presses.length === 0}
-          className={`${big} h-12 border border-border text-base`}
-        >
-          ↶ Desfer
-        </button>
-        <button
-          onClick={() => setModal("finish")}
-          disabled={pending || !allowed.finish}
-          className={`${big} h-12 bg-danger text-base text-white`}
-        >
-          HYROX FINISHED
-        </button>
-      </section>
+      <button
+        onClick={() => setModal("finish")}
+        disabled={pending || !allowed.finish}
+        className="mt-2 h-12 w-full rounded-full bg-[#FF3B30] text-base font-semibold text-white transition active:scale-[0.98] disabled:opacity-30"
+      >
+        HYROX FINISHED
+      </button>
 
       {modal === "change" && (
         <Modal title="Canviar d'estació" onClose={() => setModal(null)}>
@@ -288,18 +384,26 @@ export function Control({
             El temps continua comptant a{" "}
             {PHASE_LABEL[state.phase].toLowerCase()} fins que triïs.
           </p>
-          <ul className="flex flex-col gap-2">
+          <ul className="overflow-hidden rounded-xl bg-[#f2f2f7] dark:bg-[#1c1c1e]">
             {ctx.stations.map((s, i) => (
-              <li key={s}>
+              <li
+                key={s}
+                className="border-b border-black/10 last:border-0 dark:border-white/10"
+              >
                 <button
                   onClick={() => send({ kind: "CHANGE_STATION", stationId: s })}
                   disabled={pending}
-                  className={`flex h-12 w-full items-center gap-3 rounded-md border px-3 text-left ${
-                    s === st ? "border-accent" : "border-border"
-                  }`}
+                  className="flex h-12 w-full items-center gap-3 px-4 text-left"
                 >
                   <span className="w-5 font-mono text-muted">{i + 1}</span>
-                  {sName[s]}
+                  <span className={s === st ? "font-semibold" : ""}>
+                    {sName[s]}
+                  </span>
+                  {stationDetails[s] && (
+                    <span className="ml-auto text-sm text-muted">
+                      {stationDetails[s]}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
@@ -315,14 +419,14 @@ export function Control({
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setModal(null)}
-              className={`${big} border border-border`}
+              className="h-12 rounded-full bg-[#f2f2f7] text-base font-semibold dark:bg-[#2c2c2e]"
             >
               NO
             </button>
             <button
               onClick={() => send({ kind: "FINISHED" })}
               disabled={pending}
-              className={`${big} bg-danger text-white`}
+              className="h-12 rounded-full bg-[#FF3B30] text-base font-semibold text-white disabled:opacity-50"
             >
               YES
             </button>
@@ -344,13 +448,13 @@ function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-10 flex items-end justify-center bg-black/50 sm:items-center"
+      className="fixed inset-0 z-10 flex items-end justify-center bg-black/40 sm:items-center"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-label={title}
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-xl bg-background p-4 sm:rounded-xl"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-background p-5 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-2 text-lg font-semibold">{title}</h2>

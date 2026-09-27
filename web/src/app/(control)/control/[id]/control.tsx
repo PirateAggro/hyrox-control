@@ -169,7 +169,8 @@ export function Control({
   /** Els cinc botons i START fan un bip en prémer-los. */
   const sendWithBeep = (action: Action) => {
     if (pending) return;
-    beep();
+    // El canvi de participant té un bip propi, diferent del dels botons.
+    beep(action.kind === "SWITCH" ? "switch" : "action");
     send(action);
   };
 
@@ -320,7 +321,9 @@ export function Control({
           return (
             <button
               key={p}
-              onClick={() => send({ kind: "SWITCH", participantId: p })}
+              onClick={() =>
+                sendWithBeep({ kind: "SWITCH", participantId: p })
+              }
               disabled={pending || !allowed.switchTo.includes(p)}
               className={`flex h-12 items-center justify-between rounded-xl bg-white/80 px-4 text-lg dark:bg-white/10 ${
                 active

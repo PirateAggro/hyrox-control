@@ -40,6 +40,11 @@ sempre abans de desplegar el codi que la necessita.**
 - [x] Estil Apple a totes les pantalles (commit 2cc3097). Desactivar i
       esborrar ara són a la pantalla d'edició de cada participant/estació.
 - [x] TRANSITION es mostra com a ROXZONE (intern continua TRANSITION).
+- [ ] Idea (aparcada): app Garmin Connect IQ (device app, no watch face).
+      Necessitaria una API JSON amb clau pròpia, hora presa al rellotge (les
+      peticions passen pel mòbil amb 1–3 s de retard) i una regla de tall
+      més tolerant. Pendent: model de rellotge, qui el porta, si substitueix
+      o complementa el mòbil.
 - [ ] Opcional: filtrar els participants inactius (no s'esborren) i la
       unicitat de l'email, que la base de dades no comprova.
 

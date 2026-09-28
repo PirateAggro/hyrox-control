@@ -38,8 +38,9 @@ sempre abans de desplegar el codi que la necessita.**
 - [ ] Omplir el pes de les estacions (ara només es mostra la distància).
 - [ ] Actualitzar l'especificació: pausa, bips, confirmació de correus,
       sense UNDO, hyrox.ddns.net en lloc de Cloudflare.
-- [ ] Aplicar l'estil Apple a la resta de pantalles (inici, selecció,
-      participants, estacions, resultats); ara només el té la de control.
+- [x] Estil Apple a totes les pantalles (commit 2cc3097). Desactivar i
+      esborrar ara són a la pantalla d'edició de cada participant/estació.
+- [x] TRANSITION es mostra com a ROXZONE (intern continua TRANSITION).
 - [ ] Opcional: filtrar els participants inactius (no s'esborren) i la
       unicitat de l'email, que la base de dades no comprova.
 

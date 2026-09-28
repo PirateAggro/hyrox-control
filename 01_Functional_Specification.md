@@ -4,112 +4,126 @@
 # Hyrox Controller System (Hyrox Control)
 ## Functional Specification
 
-**Version:** 1.0-draft
+**Version:** 1.1 (28/09/2026) — reflecteix l'aplicació en producció
 
 ---
 
 # 1. Objectiu
 
-Hyrox Control és una aplicació que s'instal.larà en un web server segur que està en una  Raspberry Pi 5 (remota accessible via internet) i monitoritza els temps dedicats a cada una de les estacions de Hyrox, mesura també el temps entre estacions (transicions) i la prova entre estacions de córrer. 
-L'objectiu es recopilar tots els temps per usuari a una base de dades "supabase" i enviar per correu electrònic un arxiu csv en finalitzar la prova als participants. La base de dades mantindrà un històric de les proves
+Hyrox Control és una aplicació web que s'executa en un servidor segur (HTTPS) instal·lat en una Raspberry Pi 5 accessible per internet a **https://hyrox.ddns.net**. Es fa servir des del navegador del mòbil i cronometra els temps de cada una de les estacions de Hyrox, el temps entre estacions (Roxzone) i els trams de córrer (Run).
 
+L'objectiu és recopilar tots els temps per participant en una base de dades Supabase, que en manté l'històric, i enviar per correu electrònic un arxiu CSV amb els resultats als participants, un cop l'operador ho confirma (§7).
 
-Cada pulsació es guarda a Supabase en el moment de prémer-la.
+## Pulsacions i connexió
 
-Tall de connexió. Hi ha tall quan una pulsació no es pot guardar, sigui quin sigui el motiu (mòbil, Raspberry Pi o Supabase). En aquest cas apareix l'avís "sense connexió" i la sessió es tanca. Les pulsacions ja guardades es conserven; la resta es perden. No s'envia correu.
-Una recàrrega de la pàgina durant una sessió també la tanca. Mentre hi ha una sessió en curs, la pantalla del mòbil es manté encesa.
+Cada pulsació es guarda a Supabase en el moment de prémer-la, amb l'hora del servidor de la Raspberry Pi. Els temps no es guarden: es calculen a partir de les pulsacions.
 
-Estat de la sessió. Una sessió és "completada" si té guardada la pulsació de HYROX FINISHED; si no, és "interrompuda".
+**Tall de connexió.** Hi ha tall quan una pulsació no es pot guardar, sigui quin sigui el motiu (mòbil, Raspberry Pi o Supabase). En aquest cas apareix l'avís "Sense connexió" i la sessió es tanca. Les pulsacions ja guardades es conserven; la resta es perden. No s'envia correu.
 
-HYROX FINISHED. En confirmar amb YES, la sessió s'acaba a la prova on s'estigui, queda completada i s'envia el correu als participants.
+Una recàrrega de la pàgina durant una sessió també la tanca. En tornar a l'inici de l'aplicació, qualsevol sessió començada que hagi quedat oberta es tanca.
+
+Mentre hi ha una sessió en curs, la pantalla del mòbil es manté encesa.
 
 Si no hi ha connexió en començar, l'aplicació no s'obre.
 
-Hi ha un únic compte d'operador (email i contrasenya), amb accés total a totes les funcions i dades. L'operador és qui controla l'aplicació; els participants (§3) són qui fa l'exercici.
+## Estat de la sessió
 
-Projecte supabase propi
-Subdomini de Cloudflare propi a la mateixa Pi.
-Protecció de dades: els emails dels participants només els ha de poder veure l'operador.
+- **Completada:** té guardada la pulsació de HYROX FINISHED.
+- **Interrompuda:** s'ha tancat per un tall o una recàrrega, sense HYROX FINISHED.
+- **En curs:** encara no s'ha acabat ni tancat.
+
+## Accés i seguretat
+
+- L'aplicació només és accessible per HTTPS.
+- Hi ha un únic compte d'operador (email i contrasenya, via Supabase Auth), amb accés total a totes les funcions i dades. L'operador és qui controla l'aplicació; els participants (§3) són qui fa l'exercici i no hi tenen accés.
+- No hi ha formulari de registre: el compte d'operador es crea des del panell de Supabase, i el registre de comptes nous hi està desactivat.
+- La sessió de l'operador es renova automàticament i no pot caducar durant una prova.
+- El navegador no accedeix mai directament a Supabase: totes les dades passen pel servidor de la Raspberry Pi.
+- Protecció de dades: els emails dels participants només els veu l'operador. Cada participant rep el seu correu per separat.
+- Projecte Supabase propi. El servidor hi fa una consulta diària perquè el pla gratuït no el pausi per inactivitat.
 
 ---
 
 # 2. Flux funcional global
 
-Pantalla inici d'acces (usuari i pwd)
+Pantalla d'accés (email i contrasenya de l'operador)
 
 ```
-Master Data (usuaris i proves)
+Master Data (participants i estacions)
    ↓
-Selecció usuaris
+Nova sessió: selecció de participants i ordre
    ↓
-Pantalla de Control
+Pantalla de Control → START
    ↓
-Inici Prova 1
+Estació 1
    ↓
-Transició 1 i/o RUN 1 i/o Change Station i/o Next Station
+ROXZONE i/o RUN, o NEXT STATION, o CHANGE STATION   (PAUSA en qualsevol moment)
    ↓
-Inici Prova 2
+Estació 2
    ↓
 ....
    ↓
-Finalització estacions (amb botó HYROX FINISHED)
+Finalització (botó HYROX FINISHED + confirmació YES)
    ↓
-Enviament dades a l'usuari(PARTICIPANTS)
-
+Resultats → enviament del correu a cada participant, amb confirmació
 ```
-
 
 ---
 
-# 3. User Master Data
+# 3. Participants (Master Data)
 
 ## Objectiu
 
-Tenir el llistat d'usuaris i el manteniment (poder crear-ne de nous / modificar o deixar-lo inactiu per mantenir històric)
+Tenir el llistat de participants i el manteniment: crear-ne de nous, modificar-los o desactivar-los. Els participants no s'esborren, perquè se'n conservi l'històric.
 
-## Dades Master Data
+## Dades
 
-- Nom de l'usuari (persona que fa el hyrox)
-- email (persona que fa el hyrox)
+- Nom del participant (persona que fa el Hyrox)
+- Email del participant
 
 ## Procés
 
-- Valida que l'usuari no existeix ja si es vol crear amb el mateix nom
-- Valida email és correcte
+- Valida que no existeixi ja un participant amb el mateix nom (sense distingir majúscules ni espais; inclou els inactius).
+- Valida que l'email tingui un format correcte.
+- A la llista, tocar un participant obre la seva pantalla d'edició, on també es pot desactivar o tornar a activar.
+- Un participant desactivat no surt a la selecció de noves sessions, però es conserven els seus resultats.
 
 ## Outputs
 
-- Missatge d'usuari creat / Modificat o inactivar amb èxit
+- Missatge de participant creat / modificat / desactivat.
 
-
-
-## 3.1 Proves Master Data
+## 3.1 Estacions (Master Data)
 
 ## Objectiu
 
-Llistat de totes les proves. 
-En principi seràn fixes, però millor incloure possibilitat d'afegir-ne / modificar o inactivar
+Llistat de totes les estacions. Per defecte hi ha les 8 estacions de Hyrox, però es poden afegir, modificar, desactivar o esborrar.
 
-Per cada prova s'han de mantenir dues dades : DISTANCE i WEIGHT
-Son dues dades purament descriptives
+Per a cada estació es mantenen:
 
-Cal mantenir un numero que sigui l'ordre en que s'executaran les proves.
+- **Nom**
+- **Ordre:** número que indica l'ordre d'execució. Dues estacions actives no poden tenir el mateix número. L'última prova és la de número d'ordre més alt.
+- **Distància** i **Pes:** dades descriptives. Es mostren a la pantalla de control sota el nom de l'estació (per exemple "1000 m - 25 kg"). Si no n'hi ha, no es mostren.
+
+A la llista, tocar una estació obre la seva pantalla d'edició, on es pot desactivar o esborrar. Una estació només es pot esborrar si no té sessions guardades; si en té, només es pot desactivar.
+
+Cada sessió guarda l'ordre de les estacions actives en el moment de crear-la: si després es modifiquen les estacions, les sessions ja creades no canvien.
 
 ---
 
-# 4. Selecció 
+# 4. Nova sessió (selecció de participants)
 
 ## Objectiu
 
-Abans de l'inici del control, cal seleccionar l'usuari o usuaris que participen en la prova.
+Abans de l'inici del control, cal seleccionar el participant o participants de la sessió.
 
-Cal mostrar la llista d'usuaris amb la possiblitat de seleccionar-ne un (en aquest cas serà el mode "Individual"), o més d'un i serà el mode "Equip"
+Es mostra la llista de participants actius. Tocar un participant l'afegeix a la selecció amb el número d'ordre següent; tornar-lo a tocar el treu i la resta es renumeren. L'ordre de selecció és l'ordre en què faran les proves.
 
-Quan sigui més d'un usuari, cal definir l'ordre en que aniran fent les proves. Per tant a la selecció d'usuaris cal incorporar un número que digui aquest ordre
+- Un sol participant: mode **Individual**.
+- Més d'un participant: mode **Equip**.
 
 ## Procés
 
-Un cop seleccionats els usuaris participants i l'ordre es passarà a la pantalla de control 
+Un cop seleccionats els participants i l'ordre, es passa a la pantalla de control.
 
 ---
 
@@ -117,142 +131,166 @@ Un cop seleccionats els usuaris participants i l'ordre es passarà a la pantalla
 
 ## Objectiu
 
-Aquesta és la pantalla clau que mostrarà el temps per prova o transició
+És la pantalla clau: mostra i controla els temps de cada estació, Roxzone i Run.
 
+## Disseny
 
-## Inputs
+Estil Apple (iOS), pensat per fer-se servir amb el mòbil mentre es corre:
 
-- Numero i identitat dels usuaris participants Caldrà mostrar tants botons com usuaris seleccionats segons l'ordre establert
+- A dalt, dos cronòmetres: **Total** i el temps de la **fase actual** (Estació, Roxzone, Run o "En pausa").
+- A sota, en una sola línia: número i nom de l'estació, distància i pes (per exemple `1 · SkiErg · 1000 m - 25 kg`).
+- Els participants, un sota l'altre, cadascun amb el seu temps a l'estació actual. El participant actiu es marca amb una vora verda.
+- Cinc botons a tota l'amplada, un sota l'altre, cadascun d'un color:
 
-## Outputs 
+| Botó | Color | Nom intern |
+|---|---|---|
+| ROXZONE | Taronja | TRANSITION |
+| RUN | Verd | RUN |
+| NEXT STATION | Blau | NEXT_STATION |
+| CHANGE STATION | Lila | CHANGE_STATION |
+| PAUSA / CONTINUAR | Gris / Groc | PAUSE / RESUME |
 
-- Prova en proces (seguint l'ordre establert, però amb possibilitat de canviar-lo)
-- Temps parcial per participant / per equip de la prova en proces i temps total de l'equip fins finalitzar totes les proves.
-
+- HYROX FINISHED: botó vermell en forma de píndola, a baix de tot.
+- **Color de fons:** en prémer un dels cinc botons, el fons de la pantalla pren un to suau del color d'aquell botó. En continuar després d'una pausa, torna el color d'abans.
+- **Bips de confirmació:**
+  - START i els cinc botons: un bip agut.
+  - Canvi de participant: dos bips més greus.
+  - A l'iPhone, amb l'interruptor de silenci activat, el navegador no fa sonar els bips.
 
 ## Procés
-Començarà a comptar el temps quan es premi el botó START. En aquest moment es comptarà aquest temps en 3 nivells.
 
-El Hyrox comença amb la prova 1 (no run i no transition inicials)
+Es comença a comptar el temps quan es prem el botó **START**. El Hyrox comença a la primera estació, amb el participant número 1 (no hi ha run ni roxzone inicials).
 
-- Usuari 1 - Prova 1  (definits prèviament)
-- Equip - Prova 1 (si no es mode individual cal mantenir temps de l'equip). 
-- Equip - Hyrox (temps total fins acabar totes les proves / transicions i correr)
+El temps es compta en 3 nivells:
 
-En el cas de més d'un usuari, quan es premi el nom del seguent usuari. Es mostren tots els usuaris. L'ordre definit inicialment es només indicatiu.
-- Finalitza el comptador de Usuari 1 - Prova 1 i comença el comptador de l'usuari 2 - Prova 1 i seguirà comptant el temps Equip-Prova 1 i Equip - Hyrox
+- Participant – Estació
+- Equip – Estació (en mode Equip)
+- Total Hyrox (suma de totes les estacions, roxzones i runs)
 
-Atencio! dins d'una mateixa prova es poden alternar diverses vegades a la mateixa estació. El temps d'un usuari que torna a entrar s'acumula.
+**Canvi de participant.** En mode Equip, en prémer el nom d'un altre participant finalitza el comptador del participant actual a l'estació i comença el del nou, i segueixen comptant Equip – Estació i Total. L'ordre definit inicialment és només indicatiu. Dins d'una mateixa estació els participants es poden alternar diverses vegades: el temps d'un participant que torna a entrar s'acumula. Durant una Roxzone o un Run no es pot canviar de participant.
 
-Quan s'acabi la prova 1, l'usuari pot premer qualsevol dels 4 botons següents : "TRANSITION" o "RUN" o "NEXT STATION" o "CHANGE STATION": 
+Quan s'acaba una estació es pot prémer ROXZONE, RUN, NEXT STATION o CHANGE STATION.
 
-Si prem el boto "TRANSITION". En aquest moment:
+**ROXZONE** (intern: TRANSITION):
+- Finalitza el comptador del participant actual a l'estació i el d'Equip – Estació.
+- Segueix el Total.
+- Comença el comptador de Roxzone, associat a l'estació ("Roxzone – SkiErg").
+- La Roxzone no es compta per participant, només per a l'equip.
 
-- Finalitza el comptador de Usuari actual(el que estigui seleccionat) - Prova 1 
-- Finalitza el comptador de Equip - Prova 1
-- Segueix el comptador de Equip - Hyrox 
-- comença el comptador de Equip - TRANSITION (associat a la prova 1, per tant podem usar la nomenclatura TRANSITION-Nom prova1)
+**RUN:**
+- Finalitza el comptador de l'estació (si es prem directament des de l'estació) o el de la Roxzone (si es prem després de ROXZONE).
+- Segueix el Total.
+- Comença el comptador de Run, associat a l'estació ("Run – SkiErg").
+- No es pot fer RUN → ROXZONE.
 
-La TRANSITION de cada prova no es mante a nivell de cada usuari. Només per calcular el temps total invertit en el Hyrox
+**NEXT STATION:** passa a l'estació següent segons l'ordre, començant pel participant número 1.
 
-Si prem el boto "RUN". En aquest moment:
-- Finalitza el comptador de Usuari actual(el que estigui seleccionat) - Prova 1 (si ve de TRANSITION aquest comptador ja estava aturat)
-- Finalitza el comptador de Equip - Prova 1 o Transition 1 (depenent de si es prem RUN directament des de la prova o des de TRANSITION)
-- Segueix el comptador de Equip - Hyrox 
-- comença el comptador de Equip - RUN (associat a la prova 1, per tant podem usar la nomenclatura RUN - Nom prova1)
+**CHANGE STATION:** mostra la llista de totes les estacions de la sessió (amb distància i pes) i l'operador tria la següent, que comença pel participant número 1. A partir d'aquí l'ordre continua de manera seqüencial. Les estacions que no es facin no hi seran. Es pot triar una estació anterior: en aquest cas s'acumulen els temps de l'estació i de la seva Roxzone i Run.
 
-no es pot fer RUN --> TRANSITION
+**On va el temps del canvi.** Cada pulsació tanca el tram que estava obert:
 
+- Si NEXT STATION o CHANGE STATION es premen des d'una Roxzone o un Run, el temps fins a la pulsació (inclòs el que es triga a triar l'estació a CHANGE STATION) queda a aquella Roxzone o aquell Run.
+- Si es premen directament des de l'estació, el temps queda a l'estació.
 
-Si prem el boto CHANGE STATION. En aquest cas se li ha de mostrar una pantalla amb totes les proves i ell seleccionarà la seguent. En aquest cas, l'ordre serà sequencial a partir de la prova seleccionada.L'usuari número 1 de l'ordre. Les proves que no s'executin no comptaràn a nivell de temps. Simplement no hi seran. Es pot triar una prova anterior. En aquest cas s'acumularan els temps de la prova, i de la TRANSITION o RUN de la prova corresponent.
-El temps necessari per fer aquest canvi, s'associarà a "TRANSITION" o "RUN" de la prova anterior. Es a dir, si es prem CHANGE STATION des de la prova 3, s'inclourà a "TRANSITION - Prova 3" o a "RUN - Prova 3"
-No es pot tornar enrere després d'haver fet l'última prova.
+**PAUSA / CONTINUAR:**
+- PAUSA atura tots els comptadors, també el Total. El temps de pausa no compta enlloc.
+- Mentre està en pausa, el botó mostra "CONTINUAR" en groc i el fons es posa gris. Només es pot prémer CONTINUAR o HYROX FINISHED.
+- CONTINUAR torna exactament on era: la mateixa fase, estació i participant.
 
-Si prem el boto NEXT STATION. En aquest cas cal seguir l'ordre sequencial segons la definició inicial de les proves. L'usuari número 1 de l'ordre.
-El temps necessari per fer aquest canvi, s'associarà a "TRANSITION" o "RUN". Es a dir, si es prem NEXT STATION des de la prova 3, s'inclourà a "TRANSITION - Prova 3" o a "RUN - Prova 3".
+**Última estació** (la de número d'ordre més alt): només es pot prémer HYROX FINISHED i PAUSA. En mode Equip els botons de participant continuen actius.
 
-si NEXT STATION o CHANGE STATION són premuts sense passar per TRANSITION o RUN, el temps s'assigna a la prova que s'estava fent.
+**HYROX FINISHED:** demana confirmació. Amb YES s'aturen tots els comptadors i la sessió queda completada, sigui quina sigui l'estació on s'estigui. Amb NO es continua. Després es mostra la pantalla de resultats (§7).
 
-així serà el loop fins arribar a la darrera prova (la que te el numero més alt).
-A l'última prova només es pot prémer HYROX FINISHED. En mode equip, els botons de participant continuen actius.
+No hi ha botó per desfer pulsacions.
 
-Al costat del boto START caldrà que hi hagi el de "HYROX FINISHED". 
-En premer aquest boto cal una pantalla de confirmació i si es prem YES aturarà tots els comptadors i es dona per acabada la sessió (completada). Si no es continuarà amb els comptadors.
+## Resultats
 
+En una sessió sense CHANGE STATION, en mode Equip amb 2 participants, s'obtenen aquests temps parcials i totals:
 
-En un proces sense "CHANGE STATION" per a 2 usuaris, al final es tindran els seguents temps parcials i totals
-
+```
 USUARI 1 - PROVA 1
 USUARI 2 - PROVA 1
 EQUIP - PROVA 1
-EQUIP - TRANSICIO PROVA 1
-EQUIP - RUN PROVA 1
+ROXZONE - PROVA 1
+RUN - PROVA 1
 USUARI 1 - PROVA 2
 USUARI 2 - PROVA 2
 EQUIP - PROVA 2
-EQUIP - TRANSICIO PROVA 2
-EQUIP - RUN PROVA 2
-USUARI 1 - PROVA 3
-USUARI 2 - PROVA 3
-EQUIP - PROVA 3
-EQUIP - TRANSICIO PROVA 3
-EQUIP - RUN PROVA 3
-USUARI 1 - PROVA 4
-USUARI 2 - PROVA 4
-EQUIP - PROVA 4
-EQUIP - TRANSICIO PROVA 4
-EQUIP - RUN PROVA 4
-USUARI 1 - PROVA 5
-USUARI 2 - PROVA 5
-EQUIP - PROVA 5
-EQUIP - TRANSICIO PROVA 5
-EQUIP - RUN PROVA 5
-USUARI 1 - PROVA 6
-USUARI 2 - PROVA 6
-EQUIP - PROVA 6
-EQUIP - TRANSICIO PROVA 6
-EQUIP - RUN PROVA 6
-USUARI 1 - PROVA 7
-USUARI 2 - PROVA 7
-EQUIP - PROVA 7
-EQUIP - TRANSICIO PROVA 7
-EQUIP - RUN PROVA 7
+ROXZONE - PROVA 2
+RUN - PROVA 2
+... (igual per a les proves 3 a 7)
 USUARI 1 - PROVA 8
 USUARI 2 - PROVA 8
 EQUIP - PROVA 8
-USUARI 1 - TOTAL PROVES 
+USUARI 1 - TOTAL PROVES
 USUARI 2 - TOTAL PROVES
-EQUIP - TOTAL HYROX
+TOTAL HYROX
+```
 
-En mode individual 
+En mode Individual:
 
+```
 USUARI 1 - PROVA 1
-EQUIP 1 - TRANSICIO PROVA 1
-EQUIP 1 - RUN PROVA 1
-USUARI 1 - PROVA 2
-EQUIP 1 - TRANSICIO PROVA 2
-EQUIP 1 - RUN PROVA 2
-USUARI 1 - PROVA 3
-EQUIP 1 - TRANSICIO PROVA 3
-EQUIP 1 - RUN PROVA 3
-USUARI 1 - PROVA 4
-EQUIP 1 - TRANSICIO PROVA 4
-EQUIP 1 - RUN PROVA 4
-USUARI 1 - PROVA 5
-EQUIP 1 - TRANSICIO PROVA 5
-EQUIP 1 - RUN PROVA 5
-USUARI 1 - PROVA 6
-EQUIP 1 - TRANSICIO PROVA 6
-EQUIP 1 - RUN PROVA 6
-USUARI 1 - PROVA 7
-EQUIP 1 - TRANSICIO PROVA 7
-EQUIP 1 - RUN PROVA 7
+ROXZONE - PROVA 1
+RUN - PROVA 1
+... (igual per a les proves 2 a 7)
 USUARI 1 - PROVA 8
+TOTAL HYROX
+```
 
-si no hi ha hagut "CHANGE STATION"
+Les línies de Roxzone i Run només hi surten si s'han fet. A la pantalla els temps es mostren truncats al segon (com un cronòmetre); al CSV hi ha els segons exactes.
 
+---
 
-# 6. DATABASE
+# 6. Base de dades
 
-Totes les dades de temps cal que s'emmagatzemin en una BDD supabase, guardant també el dia i hora d'execució 
+Supabase (PostgreSQL). Taules:
 
+- **participants:** nom, email, actiu.
+- **stations:** nom, ordre, distància, pes, activa.
+- **sessions:** mode, dia i hora d'inici, ordre de les estacions de la sessió, moment de tancament (tall o recàrrega) i estat del correu de cada participant.
+- **session_participants:** participants de la sessió i el seu ordre.
+- **presses:** pulsacions (tipus, número dins la sessió, participant, estació, hora del servidor). Una pulsació reenviada no es pot guardar dues vegades.
+
+Tots els temps es calculen a partir de les pulsacions. Només l'operador autenticat hi té accés. Els canvis d'esquema es fan amb fitxers de migració (`supabase/migrations/`), que s'apliquen des de l'editor SQL del panell de Supabase abans de desplegar el codi que els necessita.
+
+---
+
+# 7. Correu i CSV
+
+En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de resultats llista cada participant amb el seu email i un botó **Enviar**. En prémer-lo apareix una pregunta de verificació ("Enviar els resultats a …?", amb l'adreça) i només s'envia si l'operador confirma. Després la fila mostra "✓ Enviat" amb la data i l'hora, i el botó passa a "Reenviar".
+
+- Cada participant rep un correu propi (ningú no veu l'adreça dels altres), amb els resultats de tota la sessió al text i el CSV adjunt.
+- El correu surt del compte de Gmail configurat al servidor (contrasenya d'aplicació).
+- Les sessions interrompudes no envien correu.
+
+**Format del CSV** (pensat per obrir-se amb Excel en català o castellà):
+
+- Separador `;`, decimals amb coma, UTF-8 amb BOM.
+- Columnes: `Tipus;Participant;Estació;Segons;Temps`.
+- Tipus: Prova, Equip, Roxzone, Run, Total proves, Total Hyrox.
+- Segons amb mil·lèsimes (per exemple `21,653`) i temps en format de cronòmetre (`0:21`).
+
+---
+
+# 8. Desplegament
+
+- Raspberry Pi 5, a la mateixa màquina que Archer però completament independent: projecte Docker propi (`hyrox-control`), port `127.0.0.1:3100` (no accessible des de fora) i bloc de nginx propi.
+- Domini **hyrox.ddns.net** (No-IP), amb certificat HTTPS de Let's Encrypt (certbot, renovació automàtica).
+- Codi a GitHub (repositori privat). L'operador desplega a la Pi amb `./deploy.sh`, que mostra la versió desplegada. Guia: `deploy/README.md`.
+- Les claus (Supabase i Gmail) només són al fitxer `.env` de la Pi i al `web/.env.local` del PC; no es pugen mai al repositori.
+
+---
+
+# Historial de canvis
+
+**1.1 (28/09/2026)**
+- TRANSITION es mostra com a **ROXZONE** (internament continua sent TRANSITION).
+- Botó **PAUSA / CONTINUAR**: atura tots els comptadors, també el total.
+- Bips de confirmació, diferents per als botons i per al canvi de participant.
+- El fons de la pantalla pren el color de l'últim botó premut.
+- Distància i pes de l'estació a la pantalla de control.
+- El correu ja no s'envia automàticament: cal confirmar-lo per a cada participant.
+- Sense botó de desfer.
+- Domini hyrox.ddns.net (No-IP + nginx + certbot) en lloc de Cloudflare.
+- Disseny estil Apple a totes les pantalles; desactivar i esborrar es fan des de la pantalla d'edició.

@@ -36,8 +36,7 @@ sempre abans de desplegar el codi que la necessita.**
 ## Pendent / idees
 - [ ] Confirmar al mòbil que el bip de canvi de participant sona diferent.
 - [ ] Omplir el pes de les estacions (ara només es mostra la distància).
-- [ ] Actualitzar l'especificació: pausa, bips, confirmació de correus,
-      sense UNDO, hyrox.ddns.net en lloc de Cloudflare.
+- [x] Especificació actualitzada a la versió 1.1 (reflecteix l'app en producció).
 - [x] Estil Apple a totes les pantalles (commit 2cc3097). Desactivar i
       esborrar ara són a la pantalla d'edició de cada participant/estació.
 - [x] TRANSITION es mostra com a ROXZONE (intern continua TRANSITION).

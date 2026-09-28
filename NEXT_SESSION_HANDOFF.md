@@ -45,6 +45,12 @@ sempre abans de desplegar el codi que la necessita.**
       peticions passen pel mòbil amb 1–3 s de retard) i una regla de tall
       més tolerant. Pendent: model de rellotge, qui el porta, si substitueix
       o complementa el mòbil.
+- [ ] Idea (aparcada): MCP de Garmin per a anàlisi amb Claude (no per a
+      l'app web). Creuar els temps de Supabase amb freqüència cardíaca i
+      ritme de l'activitat Garmin ("analitza el Hyrox d'avui"). Al catàleg
+      oficial no n'hi ha cap; els de la comunitat entren amb usuari i
+      contrasenya de Garmin Connect (ho configura l'operador, no Claude).
+      Pendent: quin MCP concret.
 - [ ] Opcional: filtrar els participants inactius (no s'esborren) i la
       unicitat de l'email, que la base de dades no comprova.
 

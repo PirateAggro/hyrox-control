@@ -2,11 +2,12 @@ import Link from "next/link";
 import { requireOperator } from "@/lib/auth";
 import { statusOf, toPress } from "@/lib/sessions";
 import { CloseStale } from "./close-stale";
+import { chevron, group, groupHeader, row } from "@/components/ui";
 
 const STATUS_STYLE = {
-  completada: "text-foreground",
+  completada: "text-success",
   interrompuda: "text-danger",
-  "en curs": "text-accent",
+  "en curs": "text-tint",
 } as const;
 
 export default async function HomePage() {
@@ -48,29 +49,31 @@ export default async function HomePage() {
       <CloseStale />
       <Link
         href="/sessions/new"
-        className="flex h-16 items-center justify-center rounded-lg bg-accent text-xl font-semibold text-black"
+        className="flex h-16 items-center justify-center rounded-2xl bg-accent text-xl font-semibold text-black transition active:opacity-80"
       >
         Nova sessió
       </Link>
 
       <section>
-        <h2 className="mb-2 text-lg font-semibold">Darreres sessions</h2>
+        <h2 className={groupHeader}>Darreres sessions</h2>
         {sessions.length === 0 ? (
-          <p className="text-muted">Encara no n&apos;hi ha cap.</p>
+          <p className={`${group} px-4 py-3 text-muted`}>
+            Encara no n&apos;hi ha cap.
+          </p>
         ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
+          <ul className={group}>
             {sessions.map((s) => (
               <li key={s.id}>
                 <Link
                   href={`/control/${s.id}`}
                   prefetch={false}
-                  className="flex items-center justify-between gap-3 p-3"
+                  className={`${row} active:bg-black/5`}
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[17px]">
                       {s.names.join(", ")}
                     </span>
-                    <span className="text-sm text-muted">
+                    <span className="text-[13px] text-muted">
                       {new Date(s.startedAt).toLocaleString("ca-ES", {
                         dateStyle: "short",
                         timeStyle: "short",
@@ -78,9 +81,10 @@ export default async function HomePage() {
                       })}
                     </span>
                   </span>
-                  <span className={`text-sm ${STATUS_STYLE[s.status]}`}>
+                  <span className={`text-[15px] ${STATUS_STYLE[s.status]}`}>
                     {s.status}
                   </span>
+                  <span className={chevron}>›</span>
                 </Link>
               </li>
             ))}

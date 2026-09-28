@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { buttonSecondary, errorText } from "@/components/ui";
+import { buttonDanger, buttonSecondary, errorText } from "@/components/ui";
 
 type State = { message?: string; ok?: boolean } | undefined;
 
@@ -14,11 +14,16 @@ export function RowAction({
   fields,
   children,
   confirmText,
+  danger = false,
+  wide = false,
 }: {
   action: (prev: State, formData: FormData) => Promise<State>;
   fields: Record<string, string>;
   children: React.ReactNode;
   confirmText?: string;
+  danger?: boolean;
+  /** Fila sencera d'un grup (pantalla d'edició), en lloc d'una píndola. */
+  wide?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 
@@ -28,19 +33,33 @@ export function RowAction({
       onSubmit={(e) => {
         if (confirmText && !window.confirm(confirmText)) e.preventDefault();
       }}
-      className="flex flex-col items-end gap-1"
+      className={wide ? "flex flex-col" : "flex flex-col items-end gap-1"}
     >
       {Object.entries(fields).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
       <button
         disabled={pending}
-        className={`${buttonSecondary} h-9 px-3 text-sm`}
+        className={
+          wide
+            ? `h-11 w-full px-4 text-left text-[17px] active:bg-black/5 disabled:opacity-40 ${danger ? "text-danger" : "text-tint"}`
+            : danger
+              ? buttonDanger
+              : buttonSecondary
+        }
       >
         {children}
       </button>
       {state?.message && !state.ok && (
-        <p className={`${errorText} max-w-56 text-right`}>{state.message}</p>
+        <p
+          className={
+            wide
+              ? `${errorText} px-4 pb-2.5`
+              : `${errorText} max-w-56 text-right`
+          }
+        >
+          {state.message}
+        </p>
       )}
     </form>
   );

@@ -2,7 +2,14 @@
 
 import { useActionState, useState } from "react";
 import { createSession, type NewSessionState } from "./actions";
-import { button, errorText } from "@/components/ui";
+import {
+  button,
+  errorText,
+  group,
+  groupFooter,
+  groupHeader,
+  row,
+} from "@/components/ui";
 
 /**
  * §4: l'ordre és el de selecció. Tocar un participant l'afegeix al final;
@@ -27,50 +34,51 @@ export function SelectParticipants({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <ul className="flex flex-col gap-2">
-        {participants.map((p) => {
-          const pos = order.indexOf(p.id);
-          const selected = pos >= 0;
-          return (
-            <li key={p.id}>
-              <button
-                type="button"
-                onClick={() => toggle(p.id)}
-                aria-pressed={selected}
-                className={`flex h-14 w-full items-center gap-3 rounded-md border px-4 text-left text-lg ${
-                  selected
-                    ? "border-accent bg-accent/15 font-semibold"
-                    : "border-border"
-                }`}
-              >
-                <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${
-                    selected ? "bg-accent text-black" : "border border-border"
-                  }`}
+      <section>
+        <h2 className={groupHeader}>Participants</h2>
+        <ul className={group}>
+          {participants.map((p) => {
+            const pos = order.indexOf(p.id);
+            const selected = pos >= 0;
+            return (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  aria-pressed={selected}
+                  className={`${row} min-h-14 w-full text-left text-[17px] active:bg-black/5`}
                 >
-                  {selected ? pos + 1 : ""}
-                </span>
-                {p.name}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold ${
+                      selected ? "bg-tint text-white" : "border-2 border-border"
+                    }`}
+                  >
+                    {selected ? pos + 1 : ""}
+                  </span>
+                  <span className={selected ? "font-semibold" : ""}>
+                    {p.name}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <p className={groupFooter}>
+          {mode
+            ? `Mode ${mode}. L'ordre és el de selecció.`
+            : "Toca els participants en l'ordre en què faran les proves."}
+        </p>
+      </section>
 
       {order.map((id) => (
         <input key={id} type="hidden" name="participant" value={id} />
       ))}
 
-      <p className="text-sm text-muted">
-        {mode
-          ? `Mode ${mode}. L'ordre és el de selecció.`
-          : "Toca els participants en l'ordre en què faran les proves."}
-      </p>
-      {state?.message && <p className={errorText}>{state.message}</p>}
+      {state?.message && <p className={`${errorText} px-4`}>{state.message}</p>}
       <button
         type="submit"
         disabled={pending || order.length === 0}
-        className={`${button} h-14 text-lg`}
+        className={`${button} h-14`}
       >
         {pending ? "Preparant…" : "Continuar"}
       </button>

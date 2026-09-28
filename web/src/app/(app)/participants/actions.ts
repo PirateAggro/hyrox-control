@@ -85,4 +85,5 @@ export async function setParticipantActive(formData: FormData) {
   const active = formData.get("active") === "true";
   await supabase.from("participants").update({ active }).eq("id", id);
   revalidatePath("/participants");
+  revalidatePath(`/participants/${id}`);
 }

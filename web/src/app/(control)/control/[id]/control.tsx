@@ -188,7 +188,7 @@ export function Control({
           </p>
         </div>
         <SessionSummary session={{ ...session, presses }} />
-        <Link href="/" className="text-center text-[#007AFF]">
+        <Link href="/" className="text-center text-tint">
           Tornar a l&apos;inici
         </Link>
       </div>
@@ -211,7 +211,7 @@ export function Control({
   if (state.phase === "idle")
     return (
       <div className="flex flex-col gap-6 pt-4">
-        <div className="rounded-2xl bg-[#f2f2f7] p-4 dark:bg-[#1c1c1e]">
+        <div className="rounded-2xl bg-card p-4">
           <p className="text-sm text-muted">
             {session.mode === "team" ? "Mode Equip" : "Mode Individual"}
           </p>
@@ -241,7 +241,7 @@ export function Control({
           START
         </button>
         {message && <p className="text-sm text-danger">{message}</p>}
-        <Link href="/" className="text-center text-sm text-[#007AFF]">
+        <Link href="/" className="text-center text-[15px] text-tint">
           Cancel·lar
         </Link>
       </div>
@@ -287,13 +287,13 @@ export function Control({
     <div className="flex flex-col gap-3">
       {/* Cronòmetres: total i fase actual. */}
       <section className="grid grid-cols-2 gap-2">
-        <div className="rounded-2xl bg-black/5 p-3 dark:bg-white/10">
+        <div className="rounded-2xl bg-card/80 p-3">
           <p className="text-xs text-muted">Total</p>
           <p className="font-mono text-3xl font-semibold tabular-nums">
             {formatDuration(totals.total)}
           </p>
         </div>
-        <div className="rounded-2xl bg-black/5 p-3 dark:bg-white/10">
+        <div className="rounded-2xl bg-card/80 p-3">
           <p className="text-xs text-muted">
             {state.paused ? "En pausa" : PHASE_LABEL[state.phase]}
           </p>
@@ -321,11 +321,9 @@ export function Control({
           return (
             <button
               key={p}
-              onClick={() =>
-                sendWithBeep({ kind: "SWITCH", participantId: p })
-              }
+              onClick={() => sendWithBeep({ kind: "SWITCH", participantId: p })}
               disabled={pending || !allowed.switchTo.includes(p)}
-              className={`flex h-12 items-center justify-between rounded-xl bg-white/80 px-4 text-lg dark:bg-white/10 ${
+              className={`flex h-12 items-center justify-between rounded-xl bg-card/80 px-4 text-lg ${
                 active
                   ? "border-2 border-[#34C759] font-semibold disabled:opacity-100"
                   : "border border-black/10 disabled:opacity-50 dark:border-white/15"
@@ -387,12 +385,9 @@ export function Control({
             El temps continua comptant a{" "}
             {PHASE_LABEL[state.phase].toLowerCase()} fins que triïs.
           </p>
-          <ul className="overflow-hidden rounded-xl bg-[#f2f2f7] dark:bg-[#1c1c1e]">
+          <ul className="divide-y divide-separator overflow-hidden rounded-xl bg-background">
             {ctx.stations.map((s, i) => (
-              <li
-                key={s}
-                className="border-b border-black/10 last:border-0 dark:border-white/10"
-              >
+              <li key={s}>
                 <button
                   onClick={() => send({ kind: "CHANGE_STATION", stationId: s })}
                   disabled={pending}
@@ -422,7 +417,7 @@ export function Control({
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setModal(null)}
-              className="h-12 rounded-full bg-[#f2f2f7] text-base font-semibold dark:bg-[#2c2c2e]"
+              className="h-12 rounded-full bg-black/5 text-base font-semibold dark:bg-white/10"
             >
               NO
             </button>
@@ -457,7 +452,7 @@ function Modal({
       <div
         role="dialog"
         aria-label={title}
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-background p-5 sm:rounded-3xl"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-card p-5 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-2 text-lg font-semibold">{title}</h2>

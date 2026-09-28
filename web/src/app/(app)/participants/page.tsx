@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { requireOperator } from "@/lib/auth";
-import { createParticipant, setParticipantActive } from "./actions";
+import { createParticipant } from "./actions";
 import { ParticipantForm } from "./participant-form";
-import { buttonSecondary, errorText } from "@/components/ui";
+import {
+  chevron,
+  errorText,
+  group,
+  groupHeader,
+  largeTitle,
+  row,
+} from "@/components/ui";
 
 type Participant = { id: string; name: string; email: string; active: boolean };
 
@@ -16,54 +23,51 @@ export default async function ParticipantsPage() {
   const participants = (data ?? []) as Participant[];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="mx-auto flex max-w-xl flex-col gap-6">
+      <h1 className={largeTitle}>Participants</h1>
+
       <section>
-        <h1 className="mb-4 text-xl font-semibold">Participants</h1>
-        {error && <p className={errorText}>No s&apos;han pogut carregar.</p>}
-        {!error && participants.length === 0 && (
-          <p className="text-muted">Encara no n&apos;hi ha cap.</p>
+        {error && (
+          <p className={`${errorText} px-4 pb-2`}>
+            No s&apos;han pogut carregar.
+          </p>
         )}
-        <ul className="divide-y divide-border rounded-md border border-border">
-          {participants.map((p) => (
-            <li
-              key={p.id}
-              className={`flex flex-wrap items-center gap-x-3 gap-y-2 p-3 ${p.active ? "" : "opacity-50"}`}
-            >
-              <div className="min-w-0 flex-1 basis-48">
-                <p className="font-medium">
-                  {p.name}
-                  {!p.active && (
-                    <span className="ml-2 text-xs text-muted">(inactiu)</span>
-                  )}
-                </p>
-                <p className="truncate text-sm text-muted">{p.email}</p>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
+        {!error && participants.length === 0 ? (
+          <p className={`${group} px-4 py-3 text-muted`}>
+            Encara no n&apos;hi ha cap.
+          </p>
+        ) : (
+          <ul className={group}>
+            {participants.map((p) => (
+              <li key={p.id} className={p.active ? "" : "opacity-50"}>
+                {/* Tocar la fila obre l'edició, on es pot desactivar. */}
                 <Link
                   href={`/participants/${p.id}`}
-                  className="px-1 text-sm underline"
+                  className={`${row} active:bg-black/5`}
                 >
-                  Editar
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[17px]">
+                      {p.name}
+                      {!p.active && (
+                        <span className="ml-2 text-[13px] text-muted">
+                          inactiu
+                        </span>
+                      )}
+                    </span>
+                    <span className="block truncate text-[13px] text-muted">
+                      {p.email}
+                    </span>
+                  </span>
+                  <span className={chevron}>›</span>
                 </Link>
-                <form action={setParticipantActive}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <input
-                    type="hidden"
-                    name="active"
-                    value={String(!p.active)}
-                  />
-                  <button className={`${buttonSecondary} h-9 px-3 text-sm`}>
-                    {p.active ? "Desactivar" : "Activar"}
-                  </button>
-                </form>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
-      <section className="max-w-sm">
-        <h2 className="mb-3 text-lg font-semibold">Nou participant</h2>
+      <section>
+        <h2 className={groupHeader}>Nou participant</h2>
         <ParticipantForm action={createParticipant} submitLabel="Crear" />
       </section>
     </div>

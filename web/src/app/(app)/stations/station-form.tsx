@@ -2,7 +2,14 @@
 
 import { useActionState } from "react";
 import type { FormState } from "./actions";
-import { button, errorText, input, label } from "@/components/ui";
+import {
+  button,
+  errorText,
+  fieldRow,
+  group,
+  inputBare,
+  rowLabel,
+} from "@/components/ui";
 
 type Initial = {
   name: string;
@@ -30,7 +37,13 @@ export function StationForm({
   const v = state?.values;
 
   const fields = [
-    { name: "name", text: "Nom", required: true, value: initial?.name },
+    {
+      name: "name",
+      text: "Nom",
+      required: true,
+      placeholder: "SkiErg",
+      value: initial?.name,
+    },
     {
       name: "sort_order",
       text: "Ordre",
@@ -38,33 +51,53 @@ export function StationForm({
       type: "number",
       value: initial?.sort_order ?? suggestedOrder,
     },
-    { name: "distance", text: "Distància", value: initial?.distance },
-    { name: "weight", text: "Pes", value: initial?.weight },
+    {
+      name: "distance",
+      text: "Distància",
+      placeholder: "1000 m",
+      value: initial?.distance,
+    },
+    {
+      name: "weight",
+      text: "Pes",
+      placeholder: "25 kg",
+      value: initial?.weight,
+    },
   ];
+  const errors = fields
+    .map((f) => state?.errors?.[f.name])
+    .filter(Boolean) as string[];
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
-      {fields.map((f) => (
-        <div key={f.name} className="flex flex-col gap-1.5">
-          <label htmlFor={f.name} className={label}>
-            {f.text}
+    <form action={formAction} className="flex flex-col gap-4">
+      <div className={group}>
+        {fields.map((f) => (
+          <label key={f.name} className={fieldRow}>
+            <span className={rowLabel}>{f.text}</span>
+            <input
+              name={f.name}
+              type={f.type ?? "text"}
+              inputMode={f.type === "number" ? "numeric" : undefined}
+              min={f.type === "number" ? 1 : undefined}
+              required={f.required}
+              placeholder={f.placeholder}
+              defaultValue={v?.[f.name] ?? f.value ?? ""}
+              aria-invalid={Boolean(state?.errors?.[f.name])}
+              className={inputBare}
+            />
           </label>
-          <input
-            id={f.name}
-            name={f.name}
-            type={f.type ?? "text"}
-            min={f.type === "number" ? 1 : undefined}
-            required={f.required}
-            defaultValue={v?.[f.name] ?? f.value ?? ""}
-            className={input}
-          />
-          {state?.errors?.[f.name] && (
-            <p className={errorText}>{state.errors[f.name]}</p>
-          )}
-        </div>
+        ))}
+      </div>
+      {errors.map((e) => (
+        <p key={e} className={`${errorText} -mt-2 px-4`}>
+          {e}
+        </p>
       ))}
       {state?.message && (
-        <p role="status" className={state.ok ? "text-sm" : errorText}>
+        <p
+          role="status"
+          className={`-mt-2 px-4 ${state.ok ? "text-[13px] text-success" : errorText}`}
+        >
           {state.message}
         </p>
       )}

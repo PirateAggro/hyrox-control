@@ -6,6 +6,7 @@ import { SessionSummary } from "@/components/session-summary";
 import { Control } from "./control";
 import { clock } from "@/lib/clock";
 import { EmailPanel } from "./email-panel";
+import { largeTitle } from "@/components/ui";
 
 export default async function ControlPage({
   params,
@@ -41,13 +42,13 @@ export default async function ControlPage({
     }
 
     return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-xl font-semibold">Sessió {session.status}</h1>
+      <div className="flex flex-col gap-5">
+        <h1 className={largeTitle}>Sessió {session.status}</h1>
         <SessionSummary session={session} />
         {recipients.length > 0 && (
           <EmailPanel sessionId={session.id} recipients={recipients} />
         )}
-        <Link href="/" className="text-center text-[#007AFF]">
+        <Link href="/" className="py-2 text-center text-[17px] text-tint">
           Tornar a l&apos;inici
         </Link>
       </div>

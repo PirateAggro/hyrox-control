@@ -1,11 +1,14 @@
 import { replay } from "@/lib/timing/engine";
 import { formatDuration, summaryRows } from "@/lib/timing/summary";
 import type { LoadedSession } from "@/lib/sessions";
+import { group, groupHeader } from "@/components/ui";
 
-const EMPHASIS: Record<string, string> = {
-  team: "font-medium",
-  participantTotal: "font-semibold border-t border-border",
-  total: "font-bold text-lg border-t-2 border-foreground",
+const ROW_STYLE: Record<string, string> = {
+  transition: "pl-8 text-muted",
+  run: "pl-8 text-muted",
+  team: "font-semibold",
+  participantTotal: "font-semibold",
+  total: "text-[20px] font-bold",
 };
 
 /** Resultats de la sessió, en l'ordre de l'exemple del §5. */
@@ -17,23 +20,39 @@ export function SessionSummary({ session }: { session: LoadedSession }) {
     { participants: session.participantNames, stations: session.stationNames },
     session.mode,
   );
+  const detail = rows.filter(
+    (r) => r.kind !== "participantTotal" && r.kind !== "total",
+  );
+  const totalsRows = rows.filter(
+    (r) => r.kind === "participantTotal" || r.kind === "total",
+  );
+
+  const list = (items: typeof rows) => (
+    <ul className={group}>
+      {items.map((r, i) => (
+        <li
+          key={i}
+          className={`flex items-baseline justify-between gap-3 px-4 py-2.5 text-[17px] ${ROW_STYLE[r.kind] ?? ""}`}
+        >
+          <span className="min-w-0 truncate">{r.label}</span>
+          <span className="font-mono tabular-nums">{formatDuration(r.ms)}</span>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
-    <table className="w-full text-sm">
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i} className={EMPHASIS[r.kind] ?? ""}>
-            <td
-              className={`py-1.5 pr-3 ${r.kind === "transition" || r.kind === "run" ? "pl-3 text-muted" : ""}`}
-            >
-              {r.label}
-            </td>
-            <td className="py-1.5 text-right font-mono tabular-nums">
-              {formatDuration(r.ms)}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="flex flex-col gap-5">
+      {detail.length > 0 && (
+        <section>
+          <h2 className={groupHeader}>Detall</h2>
+          {list(detail)}
+        </section>
+      )}
+      <section>
+        <h2 className={groupHeader}>Totals</h2>
+        {list(totalsRows)}
+      </section>
+    </div>
   );
 }

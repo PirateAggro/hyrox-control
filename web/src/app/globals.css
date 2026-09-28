@@ -1,34 +1,55 @@
 @import "tailwindcss";
 
+/*
+ * Colors del sistema d'Apple (iOS). Fons gris "agrupat" amb targetes blanques,
+ * com a Configuració; en mode fosc, negre amb targetes gris fosc.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --muted: #6b7280;
-  --border: #d1d5db;
-  --accent: #eab308;
-  --danger: #dc2626;
+  --background: #f2f2f7;
+  --card: #ffffff;
+  --foreground: #000000;
+  --muted: #8e8e93;
+  --separator: rgba(60, 60, 67, 0.18);
+  --border: rgba(60, 60, 67, 0.29);
+  --tint: #007aff;
+  --accent: #ffcc00;
+  --danger: #ff3b30;
+  --success: #248a3d;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-separator: var(--separator);
   --color-border: var(--border);
+  --color-tint: var(--tint);
   --color-accent: var(--accent);
   --color-danger: var(--danger);
+  --color-success: var(--success);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --muted: #9ca3af;
-    --border: #374151;
+    --background: #000000;
+    --card: #1c1c1e;
+    --foreground: #ffffff;
+    --muted: #98989d;
+    --separator: rgba(84, 84, 88, 0.6);
+    --border: rgba(84, 84, 88, 0.65);
+    --tint: #0a84ff;
+    --danger: #ff453a;
+    --success: #30d158;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI",
+    Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }

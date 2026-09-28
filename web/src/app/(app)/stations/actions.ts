@@ -91,6 +91,7 @@ export async function setStationActive(
   if (error) return { message: "No s'ha pogut canviar l'estat." };
 
   revalidatePath("/stations");
+  revalidatePath(`/stations/${id}`);
   return { ok: true };
 }
 
@@ -115,5 +116,6 @@ export async function deleteStation(
   if (error) return { message: "No s'ha pogut esborrar l'estació." };
 
   revalidatePath("/stations");
-  return { ok: true };
+  // S'esborra des de la pantalla d'edició: torna a la llista.
+  redirect("/stations");
 }

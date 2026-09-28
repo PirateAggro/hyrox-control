@@ -32,7 +32,7 @@ test("CSV: BOM, separador ;, decimals amb coma i temps exactes", () => {
     "Prova;Núria;SkiErg;10,250;0:10",
     'Prova;"Joan ""el ràpid""";SkiErg;20,250;0:20',
     "Equip;;SkiErg;30,500;0:30",
-    "Transició;;SkiErg;2,500;0:02",
+    "Roxzone;;SkiErg;2,500;0:02",
     'Prova;Núria;"Wall Balls; 100 reps";57,125;0:57',
     'Prova;"Joan ""el ràpid""";"Wall Balls; 100 reps";29,875;0:29',
     'Equip;;"Wall Balls; 100 reps";87,000;1:27',

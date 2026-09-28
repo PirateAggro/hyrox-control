@@ -4,7 +4,7 @@
  *   per cada estació visitada (en l'ordre de la visita):
  *     <participant> – <estació>      (cada participant)
  *     Equip – <estació>              (només en mode equip)
- *     Transició – <estació>          (si n'hi ha hagut)
+ *     Roxzone – <estació>            (TRANSITION; si n'hi ha hagut)
  *     Run – <estació>                (si n'hi ha hagut)
  *   <participant> – Total proves     (només en mode equip)
  *   Total Hyrox
@@ -63,7 +63,7 @@ export function summaryRows(
     if (totals.transition[st] !== undefined)
       rows.push({
         kind: "transition",
-        label: `Transició – ${sName(st)}`,
+        label: `Roxzone – ${sName(st)}`,
         stationId: st,
         ms: totals.transition[st],
       });

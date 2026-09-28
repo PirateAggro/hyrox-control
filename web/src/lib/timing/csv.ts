@@ -15,7 +15,7 @@ import { formatDuration } from "./summary.ts";
 const KIND_LABEL: Record<SummaryRow["kind"], string> = {
   participant: "Prova",
   team: "Equip",
-  transition: "Transició",
+  transition: "Roxzone",
   run: "Run",
   participantTotal: "Total proves",
   total: "Total Hyrox",

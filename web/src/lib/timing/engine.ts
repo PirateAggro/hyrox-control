@@ -8,7 +8,7 @@
  *
  *   tram d'ESTACIÓ (estació e, participant p) → "Usuari p – Prova e"
  *                                              i "Equip – Prova e"
- *   tram de TRANSITION després de l'estació e → "Equip – Transició e"
+ *   tram de TRANSITION després de l'estació e → "Roxzone – e" (a la pantalla)
  *   tram de RUN després de l'estació e        → "Equip – Run e"
  *   de START a FINISHED                       → "Equip – Total Hyrox"
  *
@@ -273,7 +273,7 @@ export function applyPress(
       };
 
     case "TRANSITION":
-      if (!allowed.transition) fail("TRANSITION no està permès ara");
+      if (!allowed.transition) fail("ROXZONE no està permès ara");
       closeSegment(state, totals, press.at);
       return {
         ...base,

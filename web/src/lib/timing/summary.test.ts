@@ -45,7 +45,7 @@ test("línies en l'ordre de l'exemple d'equip del §5", () => {
       "Cristina – SkiErg 0:10",
       "Judith – SkiErg 0:20",
       "Equip – SkiErg 0:30",
-      "Transició – SkiErg 0:03",
+      "Roxzone – SkiErg 0:03",
       "Run – SkiErg 1:00",
       "Cristina – Wall Balls 0:30",
       "Judith – Wall Balls 0:40",
@@ -69,7 +69,7 @@ test("mode individual: sense línies d'equip ni totals per participant", () => {
     summaryRows(totals, solo, names, "individual").map((r) => r.label),
     [
       "Cristina – SkiErg",
-      "Transició – SkiErg",
+      "Roxzone – SkiErg",
       "Cristina – Wall Balls",
       "Total Hyrox",
     ],

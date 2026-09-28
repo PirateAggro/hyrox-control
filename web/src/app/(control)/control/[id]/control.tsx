@@ -50,7 +50,7 @@ function backgroundKind(presses: Press[]) {
 const PHASE_LABEL = {
   idle: "Preparats",
   station: "Estació",
-  transition: "Transició",
+  transition: "Roxzone",
   run: "Run",
   finished: "Acabat",
 } as const;
@@ -255,7 +255,7 @@ export function Control({
   }[] = [
     {
       kind: "TRANSITION",
-      label: "TRANSITION",
+      label: "ROXZONE",
       enabled: allowed.transition,
       onPress: () => sendWithBeep({ kind: "TRANSITION" }),
     },

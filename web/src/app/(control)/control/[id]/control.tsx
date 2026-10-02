@@ -252,8 +252,6 @@ export function Control({
   const coloredButtons: {
     kind: "TRANSITION" | "RUN" | "NEXT_STATION" | "CHANGE_STATION";
     label: string;
-    /** Línia petita sota el text del botó. */
-    caption?: string;
     enabled: boolean;
     onPress: () => void;
   }[] = [
@@ -271,10 +269,7 @@ export function Control({
     },
     {
       kind: "NEXT_STATION",
-      label: "NEXT STATION",
-      caption: nextSt
-        ? [sName[nextSt], stationDetails[nextSt]].filter(Boolean).join(" · ")
-        : undefined,
+      label: nextSt ? `NEXT ST - ${sName[nextSt]}` : "NEXT STATION",
       enabled: allowed.next,
       onPress: () => sendWithBeep({ kind: "NEXT_STATION" }),
     },
@@ -352,18 +347,13 @@ export function Control({
             key={b.kind}
             onClick={b.onPress}
             disabled={pending || !b.enabled}
-            className={`${bigButton} flex-col leading-tight`}
+            className={bigButton}
             style={{
               backgroundColor: COLORS[b.kind].solid,
               color: COLORS[b.kind].text,
             }}
           >
-            {b.label}
-            {b.caption && (
-              <span className="max-w-full truncate px-3 text-xs font-normal opacity-80">
-                {b.caption}
-              </span>
-            )}
+            <span className="truncate px-3">{b.label}</span>
           </button>
         ))}
         <button

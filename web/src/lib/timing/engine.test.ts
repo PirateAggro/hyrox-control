@@ -114,12 +114,17 @@ test("§5 alternança dins la mateixa prova: el temps de qui torna s'acumula", (
   assert.equal(sec(totals.teamStation.S1), 36);
 });
 
-test("TRANSITION → RUN està permès; RUN → TRANSITION no", () => {
-  const x = session(team)
+test("TRANSITION ↔ RUN: s'hi pot anar i tornar", () => {
+  const { totals, state } = session(team)
     .press({ kind: "START" })
     .press({ kind: "TRANSITION" }, 10)
-    .press({ kind: "RUN" }, 2);
-  assert.throws(() => x.press({ kind: "TRANSITION" }, 1), InvalidPress);
+    .press({ kind: "RUN" }, 2)
+    .press({ kind: "TRANSITION" }, 30)
+    .press({ kind: "RUN" }, 3)
+    .result();
+  assert.equal(state.phase, "run");
+  assert.equal(sec(totals.transition.S1), 2 + 3);
+  assert.equal(sec(totals.run.S1), 30);
 });
 
 test("NEXT STATION directe des de l'estació: el temps queda a l'estació", () => {

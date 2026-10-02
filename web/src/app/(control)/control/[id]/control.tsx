@@ -197,6 +197,8 @@ export function Control({
   const allowed = allowedActions(state, ctx);
   const st = state.stationId;
   const stationIndex = st ? ctx.stations.indexOf(st) + 1 : 0;
+  // L'índex de l'estació actual comptat des d'1 és la posició de la següent.
+  const nextSt = st ? (ctx.stations[stationIndex] ?? null) : null;
   const phaseTime =
     st === null
       ? 0
@@ -250,6 +252,8 @@ export function Control({
   const coloredButtons: {
     kind: "TRANSITION" | "RUN" | "NEXT_STATION" | "CHANGE_STATION";
     label: string;
+    /** Línia petita sota el text del botó. */
+    caption?: string;
     enabled: boolean;
     onPress: () => void;
   }[] = [
@@ -268,6 +272,9 @@ export function Control({
     {
       kind: "NEXT_STATION",
       label: "NEXT STATION",
+      caption: nextSt
+        ? [sName[nextSt], stationDetails[nextSt]].filter(Boolean).join(" · ")
+        : undefined,
       enabled: allowed.next,
       onPress: () => sendWithBeep({ kind: "NEXT_STATION" }),
     },
@@ -345,13 +352,18 @@ export function Control({
             key={b.kind}
             onClick={b.onPress}
             disabled={pending || !b.enabled}
-            className={bigButton}
+            className={`${bigButton} flex-col leading-tight`}
             style={{
               backgroundColor: COLORS[b.kind].solid,
               color: COLORS[b.kind].text,
             }}
           >
             {b.label}
+            {b.caption && (
+              <span className="max-w-full truncate px-3 text-xs font-normal opacity-80">
+                {b.caption}
+              </span>
+            )}
           </button>
         ))}
         <button

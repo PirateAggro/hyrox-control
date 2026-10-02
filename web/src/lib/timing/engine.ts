@@ -199,9 +199,9 @@ export function allowedActions(state: State, ctx: SessionContext) {
         finish: true,
       };
     case "run":
-      // §5: no es pot fer RUN → TRANSITION.
       return {
         ...none,
+        transition: true,
         next: nextStationAfter(state.stationId, ctx) !== null,
         change: true,
         pause: true,

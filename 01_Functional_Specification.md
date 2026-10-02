@@ -181,9 +181,9 @@ Quan s'acaba una estació es pot prémer ROXZONE, RUN, NEXT STATION o CHANGE STA
 - Finalitza el comptador de l'estació (si es prem directament des de l'estació) o el de la Roxzone (si es prem després de ROXZONE).
 - Segueix el Total.
 - Comença el comptador de Run, associat a l'estació ("Run – SkiErg").
-- No es pot fer RUN → ROXZONE.
+- Des d'un RUN es pot tornar a ROXZONE: el temps s'acumula a la Roxzone de la mateixa estació.
 
-**NEXT STATION:** passa a l'estació següent segons l'ordre, començant pel participant número 1.
+**NEXT STATION:** passa a l'estació següent segons l'ordre, començant pel participant número 1. El botó mostra el nom de l'estació següent sota el text.
 
 **CHANGE STATION:** mostra la llista de totes les estacions de la sessió (amb distància i pes) i l'operador tria la següent, que comença pel participant número 1. A partir d'aquí l'ordre continua de manera seqüencial. Les estacions que no es facin no hi seran. Es pot triar una estació anterior: en aquest cas s'acumulen els temps de l'estació i de la seva Roxzone i Run.
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   allowedActions,
+  hitsOf,
   replay,
   type Action,
   type Press,
@@ -46,6 +47,9 @@ function backgroundKind(presses: Press[]) {
   }
   return current as keyof typeof COLORS | null;
 }
+
+/** Botó de hits de l'última estació (rosa del sistema d'Apple). */
+const HIT_COLOR = { solid: "#FF2D55", text: "#fff" } as const;
 
 const PHASE_LABEL = {
   idle: "Preparats",
@@ -196,6 +200,8 @@ export function Control({
 
   const allowed = allowedActions(state, ctx);
   const st = state.stationId;
+  // §5: a l'última estació, cada participant té el seu comptador de hits.
+  const lastStation = st !== null && st === ctx.stations.at(-1);
   const stationIndex = st ? ctx.stations.indexOf(st) + 1 : 0;
   // L'índex de l'estació actual comptat des d'1 és la posició de la següent.
   const nextSt = st ? (ctx.stations[stationIndex] ?? null) : null;
@@ -315,27 +321,61 @@ export function Control({
         )}
       </p>
 
-      {/* Participants, un sota l'altre: tocar-ne un el fa actiu (§5). */}
+      {/* Participants, un sota l'altre: tocar-ne un el fa actiu (§5). A
+          l'última estació el nom ocupa la meitat i l'altra meitat és el
+          comptador de hits de cada participant. */}
       <section className="flex flex-col gap-1.5">
         {ctx.participants.map((p) => {
           const active = state.phase === "station" && state.participantId === p;
           const ms = st ? (totals.participantStation[p]?.[st] ?? 0) : 0;
-          return (
+          const nameButton = (
             <button
               key={p}
               onClick={() => sendWithBeep({ kind: "SWITCH", participantId: p })}
               disabled={pending || !allowed.switchTo.includes(p)}
-              className={`flex h-12 items-center justify-between rounded-xl bg-card/80 px-4 text-lg ${
+              className={`flex h-12 min-w-0 items-center justify-between gap-2 rounded-xl bg-card/80 px-4 text-lg ${
+                lastStation ? "w-1/2" : ""
+              } ${
                 active
                   ? "border-2 border-[#34C759] font-semibold disabled:opacity-100"
                   : "border border-black/10 disabled:opacity-50 dark:border-white/15"
               }`}
             >
-              <span>{pName[p]}</span>
+              <span className="truncate">{pName[p]}</span>
               <span className="font-mono tabular-nums">
                 {formatDuration(ms)}
               </span>
             </button>
+          );
+          if (!lastStation) return nameButton;
+
+          // Només es pot comptar al participant actiu; els altres mostren el
+          // seu recompte, que continua on era quan tornen a ser actius.
+          const canHit = active && allowed.hit;
+          return (
+            <div key={p} className="flex gap-1.5">
+              {nameButton}
+              <button
+                onClick={() => sendWithBeep({ kind: "HIT" })}
+                disabled={pending || !canHit}
+                aria-label={`Hit per a ${pName[p]}`}
+                className={`flex h-12 w-1/2 items-center justify-between rounded-xl px-4 text-lg font-semibold transition active:scale-[0.98] ${
+                  canHit
+                    ? "disabled:opacity-60"
+                    : "border border-black/10 bg-card/80 text-muted disabled:opacity-100 dark:border-white/15"
+                }`}
+                style={
+                  canHit
+                    ? { backgroundColor: HIT_COLOR.solid, color: HIT_COLOR.text }
+                    : undefined
+                }
+              >
+                <span>+1 HIT</span>
+                <span className="font-mono text-xl tabular-nums">
+                  {hitsOf(totals, p, st)}
+                </span>
+              </button>
+            </div>
           );
         })}
       </section>

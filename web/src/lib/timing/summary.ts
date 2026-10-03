@@ -4,6 +4,8 @@
  *   per cada estació visitada (en l'ordre de la visita):
  *     <participant> – <estació>      (cada participant)
  *     Equip – <estació>              (només en mode equip)
+ *     <participant> – <estació> – hits (cada participant; només si en aquella
+ *                                      estació s'han comptat hits)
  *     Roxzone – <estació>            (TRANSITION; si n'hi ha hagut)
  *     Run – <estació>                (si n'hi ha hagut)
  *   <participant> – Total proves     (només en mode equip)
@@ -20,12 +22,16 @@ export type SummaryRow = {
     | "team"
     | "transition"
     | "run"
+    | "hits"
     | "participantTotal"
     | "total";
   label: string;
   participantId?: string;
   stationId?: string;
+  /** Temps de la línia. A les línies "hits" és 0: el valor és `count`. */
   ms: number;
+  /** Només a les línies "hits". */
+  count?: number;
 };
 
 export function summaryRows(
@@ -60,6 +66,18 @@ export function summaryRows(
         stationId: st,
         ms: totals.teamStation[st],
       });
+    // Hits de l'última estació: tots els participants (0 si algú no n'ha fet),
+    // perquè es vegi la comparació, però només si n'hi ha hagut algun.
+    if (ctx.participants.some((p) => (totals.hits[p]?.[st] ?? 0) > 0))
+      for (const p of ctx.participants)
+        rows.push({
+          kind: "hits",
+          label: `${pName(p)} – ${sName(st)} – hits`,
+          participantId: p,
+          stationId: st,
+          ms: 0,
+          count: totals.hits[p]?.[st] ?? 0,
+        });
     if (totals.transition[st] !== undefined)
       rows.push({
         kind: "transition",
@@ -92,6 +110,11 @@ export function summaryRows(
 
   rows.push({ kind: "total", label: "Total Hyrox", ms: totals.total });
   return rows;
+}
+
+/** El valor que es mostra d'una línia: temps, o "12 hits". */
+export function formatRowValue(row: SummaryRow) {
+  return row.kind === "hits" ? `${row.count ?? 0} hits` : formatDuration(row.ms);
 }
 
 /** 83 s → "1:23"; 3723 s → "1:02:03". */

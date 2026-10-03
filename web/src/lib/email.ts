@@ -12,7 +12,7 @@ import nodemailer from "nodemailer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadSession, type EmailLog } from "@/lib/sessions";
 import { replay } from "@/lib/timing/engine";
-import { formatDuration, summaryRows } from "@/lib/timing/summary";
+import { formatRowValue, summaryRows } from "@/lib/timing/summary";
 import { toCsv } from "@/lib/timing/csv";
 
 export function mailConfigured() {
@@ -88,7 +88,7 @@ export async function sendSessionEmailTo(
       minute: "2-digit",
     }).replace(/\D+/g, "");
     const table = rows
-      .map((r) => `${r.label}: ${formatDuration(r.ms)}`)
+      .map((r) => `${r.label}: ${formatRowValue(r)}`)
       .join("\n");
 
     const user = process.env.GMAIL_USER!;

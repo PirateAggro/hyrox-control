@@ -7,7 +7,7 @@ import {
   type Press,
   type SessionContext,
 } from "./engine.ts";
-import { formatDuration, summaryRows } from "./summary.ts";
+import { formatDuration, formatRowValue, summaryRows } from "./summary.ts";
 
 const ctx: SessionContext = {
   participants: ["U1", "U2"],
@@ -80,4 +80,41 @@ test("formatDuration", () => {
   assert.equal(formatDuration(0), "0:00");
   assert.equal(formatDuration(83_999), "1:23");
   assert.equal(formatDuration(3_723_000), "1:02:03");
+});
+
+test("hits: línia per participant després d'Equip, també amb 0; cap si no n'hi ha", () => {
+  const totals = run(ctx, [
+    [{ kind: "START" }, 0],
+    [{ kind: "NEXT_STATION" }, 10],
+    [{ kind: "HIT" }, 2],
+    [{ kind: "HIT" }, 2],
+    [{ kind: "HIT" }, 2],
+    [{ kind: "FINISHED" }, 2],
+  ]);
+  const rows = summaryRows(totals, ctx, names, "team");
+  const s2 = rows.filter((r) => r.stationId === "S2").map((r) => r.label);
+  assert.deepEqual(s2, [
+    "Cristina – Wall Balls",
+    "Equip – Wall Balls",
+    "Cristina – Wall Balls – hits",
+    "Judith – Wall Balls – hits",
+  ]);
+  const hits = rows.filter((r) => r.kind === "hits");
+  assert.deepEqual(
+    hits.map((r) => [formatRowValue(r), r.ms]),
+    [
+      ["3 hits", 0],
+      ["0 hits", 0],
+    ],
+  );
+  // Sense hits, no hi ha cap línia de hits.
+  const none = run(ctx, [
+    [{ kind: "START" }, 0],
+    [{ kind: "NEXT_STATION" }, 10],
+    [{ kind: "FINISHED" }, 5],
+  ]);
+  assert.equal(
+    summaryRows(none, ctx, names, "team").some((r) => r.kind === "hits"),
+    false,
+  );
 });

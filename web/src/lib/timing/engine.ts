@@ -23,6 +23,12 @@
  * Tornar a una estació ja feta (CHANGE STATION enrere) acumula els temps sota
  * la mateixa clau.
  *
+ * HIT (només a l'última estació) compta una repetició per al participant actiu.
+ * No tanca ni obre cap tram: no toca cap temps. Els hits es guarden per
+ * participant i estació, així que si es canvia de participant i després es
+ * torna, el comptador continua on era; i tornar a l'última estació amb CHANGE
+ * STATION també continua el recompte.
+ *
  * PAUSA atura tots els comptadors: tanca el tram obert i no n'obre cap fins a
  * RESUME, que en torna a obrir un de la mateixa fase, estació i participant. El
  * temps de pausa no compta enlloc, ni al total: el total és la suma de trams.
@@ -41,6 +47,7 @@ export type PressKind =
   | "CHANGE_STATION"
   | "PAUSE"
   | "RESUME"
+  | "HIT"
   | "FINISHED";
 
 export type Press = {
@@ -85,6 +92,8 @@ export type Totals = {
   teamStation: ByKey;
   transition: ByKey;
   run: ByKey;
+  /** participant → estació → nombre de hits (només a l'última estació). */
+  hits: Record<string, ByKey>;
   /** Estacions en l'ordre en què s'han visitat per primer cop. */
   stationOrder: string[];
   /** Temps total de la sessió: suma de tots els trams (sense pauses). */
@@ -117,6 +126,7 @@ function emptyTotals(): Totals {
     teamStation: {},
     transition: {},
     run: {},
+    hits: {},
     stationOrder: [],
     total: 0,
   };
@@ -157,6 +167,7 @@ export function allowedActions(state: State, ctx: SessionContext) {
     change: false,
     pause: false,
     resume: false,
+    hit: false,
     finish: false,
   };
   // En pausa només es pot continuar o acabar.
@@ -173,19 +184,18 @@ export function allowedActions(state: State, ctx: SessionContext) {
       const switchTo = ctx.participants.filter(
         (p) => p !== state.participantId,
       );
-      // §5: a l'última prova només HYROX FINISHED (i, en equip, canviar de
-      // participant).
-      if (isLastStation(state.stationId, ctx))
-        return { ...none, switchTo, pause: true, finish: true };
-      const hasNext = nextStationAfter(state.stationId, ctx) !== null;
+      // §5: l'última prova es comporta com les altres (ROXZONE, RUN, CHANGE
+      // STATION; NEXT STATION no, perquè no n'hi ha cap després) i, a més,
+      // hi ha el comptador de hits del participant actiu.
       return {
         ...none,
         switchTo,
         transition: true,
         run: true,
-        next: hasNext,
+        next: nextStationAfter(state.stationId, ctx) !== null,
         change: true,
         pause: true,
+        hit: isLastStation(state.stationId, ctx),
         finish: true,
       };
     }
@@ -316,6 +326,18 @@ export function applyPress(
       // Torna a la mateixa fase, estació i participant d'abans de la pausa.
       return { ...base, paused: false, segmentStart: press.at };
 
+    case "HIT": {
+      if (!allowed.hit) fail("HIT no està permès ara");
+      // Sempre al participant actiu: un hit per a un altre seria un canvi de
+      // participant amagat.
+      if (press.participantId && press.participantId !== state.participantId)
+        fail("el HIT ha de ser del participant actiu");
+      const perStation = (totals.hits[state.participantId!] ??= {});
+      add(perStation, state.stationId!, 1);
+      // No toca cap tram: el temps continua corrent igual.
+      return base;
+    }
+
     case "FINISHED":
       if (!allowed.finish) fail("HYROX FINISHED no està permès ara");
       closeSegment(state, totals, press.at);
@@ -367,6 +389,7 @@ export type Action =
   | { kind: "CHANGE_STATION"; stationId: string }
   | { kind: "PAUSE" }
   | { kind: "RESUME" }
+  | { kind: "HIT" }
   | { kind: "FINISHED" };
 
 export function buildPress(
@@ -395,11 +418,20 @@ export function buildPress(
       press.stationId = action.stationId;
       press.participantId = ctx.participants[0];
       break;
+    case "HIT":
+      press.stationId = state.stationId;
+      press.participantId = state.participantId;
+      break;
   }
 
   // Valida sense tocar l'estat real.
   applyPress(state, emptyTotals(), press, ctx);
   return press;
+}
+
+/** Hits d'un participant a una estació (0 si no n'ha fet cap). */
+export function hitsOf(totals: Totals, participantId: string, stationId: string) {
+  return totals.hits[participantId]?.[stationId] ?? 0;
 }
 
 /** Suma de temps d'estació d'un participant ("Usuari – Total proves"). */

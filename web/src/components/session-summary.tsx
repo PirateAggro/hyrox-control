@@ -1,11 +1,12 @@
 import { replay } from "@/lib/timing/engine";
-import { formatDuration, summaryRows } from "@/lib/timing/summary";
+import { formatRowValue, summaryRows } from "@/lib/timing/summary";
 import type { LoadedSession } from "@/lib/sessions";
 import { group, groupHeader } from "@/components/ui";
 
 const ROW_STYLE: Record<string, string> = {
   transition: "pl-8 text-muted",
   run: "pl-8 text-muted",
+  hits: "pl-8",
   team: "font-semibold",
   participantTotal: "font-semibold",
   total: "text-[20px] font-bold",
@@ -35,7 +36,7 @@ export function SessionSummary({ session }: { session: LoadedSession }) {
           className={`flex items-baseline justify-between gap-3 px-4 py-2.5 text-[17px] ${ROW_STYLE[r.kind] ?? ""}`}
         >
           <span className="min-w-0 truncate">{r.label}</span>
-          <span className="font-mono tabular-nums">{formatDuration(r.ms)}</span>
+          <span className="font-mono tabular-nums">{formatRowValue(r)}</span>
         </li>
       ))}
     </ul>

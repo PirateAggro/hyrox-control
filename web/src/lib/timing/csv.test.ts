@@ -28,16 +28,43 @@ test("CSV: BOM, separador ;, decimals amb coma i temps exactes", () => {
   assert.ok(csv.startsWith("﻿"), "BOM per a Excel");
   const lines = csv.slice(1).trimEnd().split("\r\n");
   assert.deepEqual(lines, [
-    "Tipus;Participant;Estació;Segons;Temps",
-    "Prova;Núria;SkiErg;10,250;0:10",
-    'Prova;"Joan ""el ràpid""";SkiErg;20,250;0:20',
-    "Equip;;SkiErg;30,500;0:30",
-    "Roxzone;;SkiErg;2,500;0:02",
-    'Prova;Núria;"Wall Balls; 100 reps";57,125;0:57',
-    'Prova;"Joan ""el ràpid""";"Wall Balls; 100 reps";29,875;0:29',
-    'Equip;;"Wall Balls; 100 reps";87,000;1:27',
-    "Total proves;Núria;;67,375;1:07",
-    'Total proves;"Joan ""el ràpid""";;50,125;0:50',
-    "Total Hyrox;;;120,000;2:00",
+    "Tipus;Participant;Estació;Segons;Temps;Hits",
+    "Prova;Núria;SkiErg;10,250;0:10;",
+    'Prova;"Joan ""el ràpid""";SkiErg;20,250;0:20;',
+    "Equip;;SkiErg;30,500;0:30;",
+    "Roxzone;;SkiErg;2,500;0:02;",
+    'Prova;Núria;"Wall Balls; 100 reps";57,125;0:57;',
+    'Prova;"Joan ""el ràpid""";"Wall Balls; 100 reps";29,875;0:29;',
+    'Equip;;"Wall Balls; 100 reps";87,000;1:27;',
+    "Total proves;Núria;;67,375;1:07;",
+    'Total proves;"Joan ""el ràpid""";;50,125;0:50;',
+    "Total Hyrox;;;120,000;2:00;",
   ]);
+});
+
+test("CSV: els hits de l'última estació, amb el recompte a la columna Hits", () => {
+  const presses: Press[] = [];
+  const at = [0, 10_000, 12_000, 14_000, 15_000, 17_000, 20_000];
+  const actions: Action[] = [
+    { kind: "START" },
+    { kind: "NEXT_STATION" },
+    { kind: "HIT" },
+    { kind: "HIT" },
+    { kind: "SWITCH", participantId: "U2" },
+    { kind: "HIT" },
+    { kind: "FINISHED" },
+  ];
+  actions.forEach((a, i) => presses.push(buildPress(presses, ctx, a, at[i])));
+  const { totals } = replay(presses, ctx);
+  const lines = toCsv(summaryRows(totals, ctx, names, "team"), names)
+    .slice(1)
+    .trimEnd()
+    .split("\r\n");
+  assert.deepEqual(
+    lines.filter((l) => l.startsWith("Hits;")),
+    [
+      'Hits;Núria;"Wall Balls; 100 reps";;;2',
+      'Hits;"Joan ""el ràpid""";"Wall Balls; 100 reps";;;1',
+    ],
+  );
 });

@@ -4,6 +4,7 @@ import {
   allowedActions,
   buildPress,
   InvalidPress,
+  hitsOf,
   participantTotal,
   replay,
   type Action,
@@ -186,24 +187,108 @@ test("les proves saltades amb CHANGE STATION no hi són", () => {
     assert.equal(totals.teamStation[st], undefined);
 });
 
-test("a l'última prova només HYROX FINISHED i canviar de participant", () => {
+test("l'última prova es comporta com les altres, sense NEXT STATION", () => {
   const x = session(team)
     .press({ kind: "START" })
     .press({ kind: "CHANGE_STATION", stationId: "S8" }, 10);
   const a = allowedActions(x.result().state, team);
   assert.deepEqual(
     { t: a.transition, r: a.run, n: a.next, c: a.change, f: a.finish },
-    { t: false, r: false, n: false, c: false, f: true },
+    { t: true, r: true, n: false, c: true, f: true },
   );
   assert.deepEqual(a.switchTo, ["U2"]);
-  for (const action of [
-    { kind: "TRANSITION" },
-    { kind: "RUN" },
-    { kind: "NEXT_STATION" },
-    { kind: "CHANGE_STATION", stationId: "S1" },
-  ] as Action[])
-    assert.throws(() => x.press(action, 1), InvalidPress);
-  x.press({ kind: "SWITCH", participantId: "U2" }, 5);
+  assert.throws(() => x.press({ kind: "NEXT_STATION" }), InvalidPress);
+  // Des de l'última: ROXZONE, RUN i tornar a una altra estació.
+  x.press({ kind: "TRANSITION" }, 20)
+    .press({ kind: "RUN" }, 5)
+    .press({ kind: "CHANGE_STATION", stationId: "S3" }, 30);
+  const { state, totals } = x.result();
+  assert.equal(state.stationId, "S3");
+  assert.equal(sec(totals.teamStation.S8), 20);
+  assert.equal(sec(totals.transition.S8), 5);
+  assert.equal(sec(totals.run.S8), 30);
+  // Des de la Roxzone o el Run de l'última tampoc hi ha NEXT STATION.
+  const y = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "CHANGE_STATION", stationId: "S8" }, 10)
+    .press({ kind: "RUN" }, 10);
+  const b = allowedActions(y.result().state, team);
+  assert.deepEqual(
+    { t: b.transition, n: b.next, c: b.change, f: b.finish },
+    { t: true, n: false, c: true, f: true },
+  );
+});
+
+test("HIT: només a l'última prova, per al participant actiu, sense tocar temps", () => {
+  const x = session(team).press({ kind: "START" });
+  assert.equal(allowedActions(x.result().state, team).hit, false);
+  assert.throws(() => x.press({ kind: "HIT" }), InvalidPress);
+
+  x.press({ kind: "CHANGE_STATION", stationId: "S8" }, 10)
+    .press({ kind: "HIT" }, 3)
+    .press({ kind: "HIT" }, 3)
+    .press({ kind: "HIT" }, 3);
+  let { totals } = x.result();
+  assert.equal(hitsOf(totals, "U1", "S8"), 3);
+  assert.equal(hitsOf(totals, "U2", "S8"), 0);
+  // Un HIT no tanca el tram: el temps d'U1 és de corrido.
+  x.press({ kind: "SWITCH", participantId: "U2" }, 3);
+  ({ totals } = x.result());
+  assert.equal(sec(totals.participantStation.U1.S8), 12);
+  assert.equal(sec(totals.total), 22);
+  assert.equal(totals.total, sumOfSegments(totals));
+
+  // U2 compta els seus; en tornar a U1, continua on era.
+  x.press({ kind: "HIT" }, 2)
+    .press({ kind: "HIT" }, 2)
+    .press({ kind: "SWITCH", participantId: "U1" }, 2)
+    .press({ kind: "HIT" }, 2);
+  ({ totals } = x.result());
+  assert.equal(hitsOf(totals, "U1", "S8"), 4);
+  assert.equal(hitsOf(totals, "U2", "S8"), 2);
+});
+
+test("HIT: no durant la Roxzone, el Run ni la pausa; i un hit d'un altre es rebutja", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "CHANGE_STATION", stationId: "S8" }, 10)
+    .press({ kind: "PAUSE" }, 5);
+  assert.throws(() => x.press({ kind: "HIT" }, 1), InvalidPress);
+  x.press({ kind: "RESUME" }, 5).press({ kind: "TRANSITION" }, 5);
+  assert.throws(() => x.press({ kind: "HIT" }, 1), InvalidPress);
+  x.press({ kind: "RUN" }, 5);
+  assert.throws(() => x.press({ kind: "HIT" }, 1), InvalidPress);
+
+  // Una pulsació HIT amb un altre participant (no ve de buildPress).
+  const y = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "CHANGE_STATION", stationId: "S8" }, 10);
+  const last = y.presses.at(-1)!;
+  assert.throws(
+    () =>
+      replay(
+        [
+          ...y.presses,
+          { seq: last.seq + 1, kind: "HIT", at: last.at + 1, participantId: "U2", stationId: "S8" },
+        ],
+        team,
+      ),
+    InvalidPress,
+  );
+});
+
+test("HIT: tornar a l'última prova amb CHANGE STATION continua el recompte", () => {
+  const { totals } = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "CHANGE_STATION", stationId: "S8" }, 10)
+    .press({ kind: "HIT" }, 2)
+    .press({ kind: "HIT" }, 2)
+    .press({ kind: "RUN" }, 2)
+    .press({ kind: "CHANGE_STATION", stationId: "S2" }, 10)
+    .press({ kind: "CHANGE_STATION", stationId: "S8" }, 10)
+    .press({ kind: "HIT" }, 2)
+    .result();
+  assert.equal(hitsOf(totals, "U1", "S8"), 3);
 });
 
 test("HYROX FINISHED a mitja sessió: s'acaba a la prova on s'està", () => {
@@ -291,6 +376,7 @@ test("invariant: total = proves + transicions + runs, en 500 sessions a l'atzar"
           : []),
         ...(a.pause && rand() < 0.2 ? [{ kind: "PAUSE" } as Action] : []),
         ...(a.resume ? [{ kind: "RESUME" } as Action] : []),
+        ...(a.hit ? [{ kind: "HIT" } as Action] : []),
         ...(a.finish && rand() < 0.05 ? [{ kind: "FINISHED" } as Action] : []),
       ];
       if (options.length === 0) break;

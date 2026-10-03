@@ -139,7 +139,7 @@ Estil Apple (iOS), pensat per fer-se servir amb el mòbil mentre es corre:
 
 - A dalt, dos cronòmetres: **Total** i el temps de la **fase actual** (Estació, Roxzone, Run o "En pausa").
 - A sota, en una sola línia: número i nom de l'estació, distància i pes (per exemple `1 · SkiErg · 1000 m - 25 kg`).
-- Els participants, un sota l'altre, cadascun amb el seu temps a l'estació actual. El participant actiu es marca amb una vora verda.
+- Els participants, un sota l'altre, cadascun amb el seu temps a l'estació actual. El participant actiu es marca amb una vora verda. A l'última estació, el botó de cada participant ocupa la meitat de l'amplada i l'altra meitat és el seu comptador de hits.
 - Cinc botons a tota l'amplada, un sota l'altre, cadascun d'un color:
 
 | Botó | Color | Nom intern |
@@ -197,7 +197,13 @@ Quan s'acaba una estació es pot prémer ROXZONE, RUN, NEXT STATION o CHANGE STA
 - Mentre està en pausa, el botó mostra "CONTINUAR" en groc i el fons es posa gris. Només es pot prémer CONTINUAR o HYROX FINISHED.
 - CONTINUAR torna exactament on era: la mateixa fase, estació i participant.
 
-**Última estació** (la de número d'ordre més alt): només es pot prémer HYROX FINISHED i PAUSA. En mode Equip els botons de participant continuen actius.
+**Última estació** (la de número d'ordre més alt): es comporta com les altres. Se'n pot sortir amb ROXZONE, RUN o CHANGE STATION (NEXT STATION no, perquè no n'hi ha cap després), i també es pot prémer PAUSA i HYROX FINISHED.
+
+**Comptador de hits** (només a l'última estació):
+- Al costat de cada participant hi ha un botó **+1 HIT** amb el seu recompte. Només es pot prémer el del participant actiu; els altres mostren el seu recompte.
+- Cada toc suma un hit al participant actiu. No atura ni canvia cap comptador de temps.
+- Els hits es guarden per participant: si es canvia de participant i després es torna al primer, el seu comptador continua on era. Si es torna a l'última estació amb CHANGE STATION, també continua.
+- No es poden comptar hits durant una Roxzone, un Run ni en pausa.
 
 **HYROX FINISHED:** demana confirmació. Amb YES s'aturen tots els comptadors i la sessió queda completada, sigui quina sigui l'estació on s'estigui. Amb NO es continua. Després es mostra la pantalla de resultats (§7).
 
@@ -238,6 +244,8 @@ USUARI 1 - PROVA 8
 TOTAL HYROX
 ```
 
+Si a l'última estació s'han comptat hits, després de la línia d'Equip (o de la del participant, en mode Individual) hi ha una línia per participant amb el seu recompte (`USUARI 1 - PROVA 8 - HITS`), també amb 0 si algú no n'ha fet cap.
+
 Les línies de Roxzone i Run només hi surten si s'han fet. A la pantalla els temps es mostren truncats al segon (com un cronòmetre); al CSV hi ha els segons exactes.
 
 ---
@@ -250,7 +258,7 @@ Supabase (PostgreSQL). Taules:
 - **stations:** nom, ordre, distància, pes, activa.
 - **sessions:** mode, dia i hora d'inici, ordre de les estacions de la sessió, moment de tancament (tall o recàrrega) i estat del correu de cada participant.
 - **session_participants:** participants de la sessió i el seu ordre.
-- **presses:** pulsacions (tipus, número dins la sessió, participant, estació, hora del servidor). Una pulsació reenviada no es pot guardar dues vegades.
+- **presses:** pulsacions (tipus, número dins la sessió, participant, estació, hora del servidor). Una pulsació reenviada no es pot guardar dues vegades. Els hits també són pulsacions (tipus HIT).
 
 Tots els temps es calculen a partir de les pulsacions. Només l'operador autenticat hi té accés. Els canvis d'esquema es fan amb fitxers de migració (`supabase/migrations/`), que s'apliquen des de l'editor SQL del panell de Supabase abans de desplegar el codi que els necessita.
 
@@ -267,8 +275,9 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 **Format del CSV** (pensat per obrir-se amb Excel en català o castellà):
 
 - Separador `;`, decimals amb coma, UTF-8 amb BOM.
-- Columnes: `Tipus;Participant;Estació;Segons;Temps`.
-- Tipus: Prova, Equip, Roxzone, Run, Total proves, Total Hyrox.
+- Columnes: `Tipus;Participant;Estació;Segons;Temps;Hits`.
+- Tipus: Prova, Equip, Hits, Roxzone, Run, Total proves, Total Hyrox.
+- Les línies de tipus Hits deixen buits Segons i Temps i porten el recompte a la columna Hits.
 - Segons amb mil·lèsimes (per exemple `21,653`) i temps en format de cronòmetre (`0:21`).
 
 ---
@@ -283,6 +292,10 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 ---
 
 # Historial de canvis
+
+**1.2 (03/10/2026)**
+- L'última estació es comporta com les altres: ROXZONE, RUN i CHANGE STATION.
+- Comptador de hits per participant a l'última estació (botó **+1 HIT**), als resultats, al correu i al CSV (columna Hits).
 
 **1.1 (28/09/2026)**
 - TRANSITION es mostra com a **ROXZONE** (internament continua sent TRANSITION).

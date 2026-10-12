@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireOperator } from "@/lib/auth";
+import { isAdmin, requireOperator } from "@/lib/auth";
 import { createStation } from "./actions";
 import { StationForm } from "./station-form";
 import {
@@ -23,11 +23,15 @@ type Station = {
 
 export default async function StationsPage() {
   const { supabase } = await requireOperator();
-  const { data, error } = await supabase
-    .from("stations")
-    .select("id, name, sort_order, distance, weight, active")
-    .order("active", { ascending: false })
-    .order("sort_order");
+  // Les estacions són compartides: només l'administrador les modifica.
+  const [admin, { data, error }] = await Promise.all([
+    isAdmin(supabase),
+    supabase
+      .from("stations")
+      .select("id, name, sort_order, distance, weight, active")
+      .order("active", { ascending: false })
+      .order("sort_order"),
+  ]);
   const stations = (data ?? []) as Station[];
   const nextOrder =
     Math.max(0, ...stations.filter((s) => s.active).map((s) => s.sort_order)) +
@@ -44,13 +48,9 @@ export default async function StationsPage() {
           </p>
         )}
         <ul className={group}>
-          {stations.map((s) => (
-            <li key={s.id} className={s.active ? "" : "opacity-50"}>
-              {/* Tocar la fila obre l'edició, on hi ha desactivar i esborrar. */}
-              <Link
-                href={`/stations/${s.id}`}
-                className={`${row} active:bg-black/5`}
-              >
+          {stations.map((s) => {
+            const content = (
+              <>
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/5 text-[15px] font-semibold tabular-nums dark:bg-white/10">
                   {s.sort_order}
                 </span>
@@ -68,25 +68,43 @@ export default async function StationsPage() {
                       "Sense distància ni pes"}
                   </span>
                 </span>
-                <span className={chevron}>›</span>
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={s.id} className={s.active ? "" : "opacity-50"}>
+                {/* Tocar la fila obre l'edició, on hi ha desactivar i esborrar. */}
+                {admin ? (
+                  <Link
+                    href={`/stations/${s.id}`}
+                    className={`${row} active:bg-black/5`}
+                  >
+                    {content}
+                    <span className={chevron}>›</span>
+                  </Link>
+                ) : (
+                  <div className={row}>{content}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
         <p className={groupFooter}>
           S&apos;executen per ordre. L&apos;última prova és la de número més
           alt.
+          {!admin && " Només l'administrador les pot modificar."}
         </p>
       </section>
 
-      <section>
-        <h2 className={groupHeader}>Nova estació</h2>
-        <StationForm
-          action={createStation}
-          suggestedOrder={nextOrder}
-          submitLabel="Crear"
-        />
-      </section>
+      {admin && (
+        <section>
+          <h2 className={groupHeader}>Nova estació</h2>
+          <StationForm
+            action={createStation}
+            suggestedOrder={nextOrder}
+            submitLabel="Crear"
+          />
+        </section>
+      )}
     </div>
   );
 }

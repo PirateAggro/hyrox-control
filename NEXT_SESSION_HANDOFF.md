@@ -18,6 +18,27 @@ Base de dades: 3 participants (Cristina, Judith, Núria), 8 estacions.
 Migracions 1–5 aplicades a Supabase (la 5, `20261003000005_hit.sql`, afegeix
 HIT al check de `presses.kind`).
 
+## ⚠️ Pendent de desplegar: usuaris (versió 1.3, 12/10/2026)
+Codi fet i provat en local (tsc, eslint, 30 tests; /login i /register es
+veuen bé al mòbil). Sense provar encara el registre real: la migració exigeix
+que a auth.users hi hagi NOMÉS l'operador, així que no s'ha de crear cap
+compte abans d'aplicar-la. Ordre:
+1. Supabase → SQL editor: `supabase/migrations/20261012000006_users.sql`.
+   L'operador passa a administrador i propietari de tot el que hi ha.
+2. Supabase → Authentication → Sign In / Providers: activar "Allow new users
+   to sign up" i desactivar "Confirm email".
+3. Desplegar a la Pi (`./deploy.sh`).
+4. Provar: registrar un compte de prova, veure que no veu res de l'operador,
+   que les estacions són de només lectura, crear-hi un participant i una
+   sessió. Després esborrar el compte de prova des del panell (si té dades,
+   esborrar-les abans: les FK a auth.users no són en cascada).
+
+Com funciona: `owner_id default auth.uid()` a participants i sessions; RLS
+filtra per propietari (session_participants i presses via la sessió).
+Estacions: lectura per a tothom, escriptura només si `is_admin()` (taula
+`admins`). `sendEmailTo` comprova que la sessió és de l'usuari abans de
+cridar l'enviament, que fa servir la clau de servei.
+
 ## Com funciona (el que no es veu al codi d'un cop d'ull)
 - Només es guarden **pulsacions** (hora del servidor de la Pi); tots els temps
   es calculen. Total = suma de trams, per això la pausa no hi compta.

@@ -15,7 +15,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseConfig } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/register"];
 
 export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -55,7 +55,7 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && path === "/login") {
+  if (user && isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

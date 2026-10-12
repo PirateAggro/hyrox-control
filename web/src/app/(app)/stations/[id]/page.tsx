@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireOperator } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { deleteStation, setStationActive, updateStation } from "../actions";
 import { StationForm } from "../station-form";
 import { RowAction } from "@/components/row-action";
@@ -12,7 +12,7 @@ export default async function EditStationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase } = await requireOperator();
+  const { supabase } = await requireAdmin();
   const { data } = await supabase
     .from("stations")
     .select("name, sort_order, distance, weight, active")

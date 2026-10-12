@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireOperator } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import {
   PG,
   formValues,
@@ -19,6 +19,8 @@ export type FormState =
     }
   | undefined;
 
+// Totes requereixen administrador: les estacions són compartides (migració 6).
+
 // Índex únic parcial: dues estacions actives no poden compartir ordre, perquè
 // l'última prova és "la que té el número més alt" i ha de ser inequívoca.
 const ORDER_TAKEN = "Ja hi ha una estació activa amb aquest número d'ordre.";
@@ -27,7 +29,7 @@ export async function createStation(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { supabase } = await requireOperator();
+  const { supabase } = await requireAdmin();
   const { values, errors } = parseStation(formData);
   if (Object.keys(errors).length)
     return { errors, values: formValues(formData) };
@@ -53,7 +55,7 @@ export async function updateStation(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { supabase } = await requireOperator();
+  const { supabase } = await requireAdmin();
   const { values, errors } = parseStation(formData);
   if (Object.keys(errors).length)
     return { errors, values: formValues(formData) };
@@ -78,7 +80,7 @@ export async function setStationActive(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { supabase } = await requireOperator();
+  const { supabase } = await requireAdmin();
   const id = String(formData.get("id"));
   const active = formData.get("active") === "true";
 
@@ -104,7 +106,7 @@ export async function deleteStation(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { supabase } = await requireOperator();
+  const { supabase } = await requireAdmin();
   const id = String(formData.get("id"));
 
   const { error } = await supabase.from("stations").delete().eq("id", id);

@@ -4,7 +4,7 @@
 # Hyrox Controller System (Hyrox Control)
 ## Functional Specification
 
-**Version:** 1.1 (28/09/2026) — reflecteix l'aplicació en producció
+**Version:** 1.3 (12/10/2026) — reflecteix l'aplicació en producció
 
 ---
 
@@ -35,9 +35,11 @@ Si no hi ha connexió en començar, l'aplicació no s'obre.
 ## Accés i seguretat
 
 - L'aplicació només és accessible per HTTPS.
-- Hi ha un únic compte d'operador (email i contrasenya, via Supabase Auth), amb accés total a totes les funcions i dades. L'operador és qui controla l'aplicació; els participants (§3) són qui fa l'exercici i no hi tenen accés.
-- No hi ha formulari de registre: el compte d'operador es crea des del panell de Supabase, i el registre de comptes nous hi està desactivat.
-- La sessió de l'operador es renova automàticament i no pot caducar durant una prova.
+- **Usuaris.** Cadascú controla l'aplicació amb el seu compte (email i contrasenya, via Supabase Auth). Els participants (§3) són qui fa l'exercici i no hi tenen accés.
+- **Registre.** A la pantalla d'accés hi ha l'enllaç "Registra't", que obre un formulari amb només email i contrasenya (mínim 6 caràcters). No cal confirmar l'email: el compte queda creat i s'entra directament. No es pot registrar un email que ja té compte.
+- **Dades de cada usuari.** Cada usuari només veu i gestiona els seus participants i les seves sessions (amb les pulsacions, els resultats i els correus). Les estacions són compartides: tothom les veu i les fa servir, però només les pot modificar l'**administrador**.
+- **Administrador.** El compte d'operador original. És propietari de totes les dades d'abans dels usuaris i l'únic que pot crear, modificar, desactivar o esborrar estacions. No veu les dades dels altres usuaris.
+- La sessió de l'usuari es renova automàticament i no pot caducar durant una prova.
 - El navegador no accedeix mai directament a Supabase: totes les dades passen pel servidor de la Raspberry Pi.
 - Protecció de dades: els emails dels participants només els veu l'operador. Cada participant rep el seu correu per separat.
 - Projecte Supabase propi. El servidor hi fa una consulta diària perquè el pla gratuït no el pausi per inactivitat.
@@ -46,7 +48,7 @@ Si no hi ha connexió en començar, l'aplicació no s'obre.
 
 # 2. Flux funcional global
 
-Pantalla d'accés (email i contrasenya de l'operador)
+Pantalla d'accés (email i contrasenya), o registre d'un usuari nou
 
 ```
 Master Data (participants i estacions)
@@ -74,7 +76,7 @@ Resultats → enviament del correu a cada participant, amb confirmació
 
 ## Objectiu
 
-Tenir el llistat de participants i el manteniment: crear-ne de nous, modificar-los o desactivar-los. Els participants no s'esborren, perquè se'n conservi l'històric.
+Tenir el llistat de participants de l'usuari i el manteniment: crear-ne de nous, modificar-los o desactivar-los. Els participants no s'esborren, perquè se'n conservi l'històric.
 
 ## Dades
 
@@ -83,7 +85,8 @@ Tenir el llistat de participants i el manteniment: crear-ne de nous, modificar-l
 
 ## Procés
 
-- Valida que no existeixi ja un participant amb el mateix nom (sense distingir majúscules ni espais; inclou els inactius).
+- Cada participant és de l'usuari que l'ha creat; els altres usuaris no el veuen.
+- Valida que l'usuari no tingui ja un participant amb el mateix nom (sense distingir majúscules ni espais; inclou els inactius). Dos usuaris diferents sí que poden tenir participants amb el mateix nom.
 - Valida que l'email tingui un format correcte.
 - A la llista, tocar un participant obre la seva pantalla d'edició, on també es pot desactivar o tornar a activar.
 - Un participant desactivat no surt a la selecció de noves sessions, però es conserven els seus resultats.
@@ -96,7 +99,7 @@ Tenir el llistat de participants i el manteniment: crear-ne de nous, modificar-l
 
 ## Objectiu
 
-Llistat de totes les estacions. Per defecte hi ha les 8 estacions de Hyrox, però es poden afegir, modificar, desactivar o esborrar.
+Llistat de totes les estacions. Per defecte hi ha les 8 estacions de Hyrox, però es poden afegir, modificar, desactivar o esborrar. Les estacions són comunes a tots els usuaris: només l'administrador les pot canviar; la resta en veuen la llista però no la poden editar.
 
 Per a cada estació es mantenen:
 
@@ -254,13 +257,14 @@ Les línies de Roxzone i Run només hi surten si s'han fet. A la pantalla els te
 
 Supabase (PostgreSQL). Taules:
 
-- **participants:** nom, email, actiu.
+- **admins:** usuaris administradors (poden modificar les estacions).
+- **participants:** nom, email, actiu, usuari propietari.
 - **stations:** nom, ordre, distància, pes, activa.
-- **sessions:** mode, dia i hora d'inici, ordre de les estacions de la sessió, moment de tancament (tall o recàrrega) i estat del correu de cada participant.
+- **sessions:** usuari propietari, mode, dia i hora d'inici, ordre de les estacions de la sessió, moment de tancament (tall o recàrrega) i estat del correu de cada participant.
 - **session_participants:** participants de la sessió i el seu ordre.
 - **presses:** pulsacions (tipus, número dins la sessió, participant, estació, hora del servidor). Una pulsació reenviada no es pot guardar dues vegades. Els hits també són pulsacions (tipus HIT).
 
-Tots els temps es calculen a partir de les pulsacions. Només l'operador autenticat hi té accés. Els canvis d'esquema es fan amb fitxers de migració (`supabase/migrations/`), que s'apliquen des de l'editor SQL del panell de Supabase abans de desplegar el codi que els necessita.
+Tots els temps es calculen a partir de les pulsacions. Cada usuari autenticat només té accés als seus participants i sessions (i a les pulsacions i participants d'aquestes sessions); les estacions les llegeix tothom i només les modifica l'administrador. Ho imposa la base de dades (RLS), no només l'aplicació. Els canvis d'esquema es fan amb fitxers de migració (`supabase/migrations/`), que s'apliquen des de l'editor SQL del panell de Supabase abans de desplegar el codi que els necessita.
 
 ---
 
@@ -292,6 +296,10 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 ---
 
 # Historial de canvis
+
+**1.3 (12/10/2026)**
+- Diversos usuaris: registre amb email i contrasenya des de la pantalla d'accés, sense confirmació per correu.
+- Participants i sessions són de cada usuari; les estacions són compartides i només les modifica l'administrador (el compte d'operador original).
 
 **1.2 (03/10/2026)**
 - L'última estació es comporta com les altres: ROXZONE, RUN i CHANGE STATION.

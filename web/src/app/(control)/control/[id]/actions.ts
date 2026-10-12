@@ -97,7 +97,15 @@ export async function sendEmailTo(
   sessionId: string,
   participantId: string,
 ): Promise<{ ok: boolean; message: string }> {
-  await requireOperator();
+  const { supabase } = await requireOperator();
+  // sendSessionEmailTo llegeix amb la clau de servei (salta RLS): primer cal
+  // comprovar amb la sessió de l'usuari que la sessió és seva.
+  const { data: own } = await supabase
+    .from("sessions")
+    .select("id")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (!own) return { ok: false, message: "Sessió no trobada." };
   const r = await sendSessionEmailTo(sessionId, participantId);
   revalidatePath(`/control/${sessionId}`);
   return r.ok

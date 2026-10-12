@@ -1,43 +1,41 @@
-# Hyrox Control — handoff (03/10/2026)
+# Hyrox Control — handoff (12/10/2026)
 
 ## Estat
-En producció a **https://hyrox.ddns.net**, versió `dbade13` (`/api/health`),
-provada al mòbil per l'operador el 03/10/2026.
-Totes les fases fetes i desplegades:
+En producció a **https://hyrox.ddns.net**, versió `c0ebab0` (`/api/health`),
+desplegada el 12/10/2026. Totes les fases fetes i desplegades:
 
 | Fase | Què |
 |---|---|
-| 1 | Supabase (projecte propi), accés d'operador únic, participants i estacions |
+| 1 | Supabase (projecte propi), accés d'operador, participants i estacions |
 | 2 | Motor de temps pur (`web/src/lib/timing/engine.ts`) amb tests |
 | 3 | Selecció de participants i pantalla de control |
 | 4 | CSV + correu per Gmail; keepalive diari de Supabase |
 | + | Disseny tipus Apple (alternativa E), PAUSA/CONTINUAR, bips, fons de color, confirmació per a cada correu |
 | 1.2 | Última estació com les altres (ROXZONE, RUN, CHANGE STATION) i comptador de hits per participant |
+| 1.3 | Usuaris: registre (/register), participants i sessions per usuari, estacions compartides que només modifica l'administrador |
 
-Base de dades: 3 participants (Cristina, Judith, Núria), 8 estacions.
-Migracions 1–5 aplicades a Supabase (la 5, `20261003000005_hit.sql`, afegeix
-HIT al check de `presses.kind`).
+Base de dades: 3 participants (Cristina, Judith, Núria), 8 estacions, tots
+de l'operador original (administrador). Migracions 1–6 aplicades a Supabase
+(la 6, `20261012000006_users.sql`, afegeix `owner_id`, la taula `admins`,
+`is_admin()` i les polítiques RLS per usuari).
 
-## ⚠️ Pendent de desplegar: usuaris (versió 1.3, 12/10/2026)
-Codi fet i provat en local (tsc, eslint, 30 tests; /login i /register es
-veuen bé al mòbil). Sense provar encara el registre real: la migració exigeix
-que a auth.users hi hagi NOMÉS l'operador, així que no s'ha de crear cap
-compte abans d'aplicar-la. Ordre:
-1. Supabase → SQL editor: `supabase/migrations/20261012000006_users.sql`.
-   L'operador passa a administrador i propietari de tot el que hi ha.
-2. Supabase → Authentication → Sign In / Providers: activar "Allow new users
-   to sign up" i desactivar "Confirm email".
-3. Desplegar a la Pi (`./deploy.sh`).
-4. Provar: registrar un compte de prova, veure que no veu res de l'operador,
-   que les estacions són de només lectura, crear-hi un participant i una
-   sessió. Després esborrar el compte de prova des del panell (si té dades,
-   esborrar-les abans: les FK a auth.users no són en cascada).
-
-Com funciona: `owner_id default auth.uid()` a participants i sessions; RLS
-filtra per propietari (session_participants i presses via la sessió).
-Estacions: lectura per a tothom, escriptura només si `is_admin()` (taula
-`admins`). `sendEmailTo` comprova que la sessió és de l'usuari abans de
-cridar l'enviament, que fa servir la clau de servei.
+## Usuaris (1.3)
+- `owner_id default auth.uid()` a participants i sessions: el codi no passa
+  mai el propietari. RLS filtra per propietari; session_participants i
+  presses van via la sessió.
+- Estacions: lectura per a tothom, escriptura només si `is_admin()` (taula
+  `admins`, sense polítiques: només s'hi accedeix per la funció). Les actions
+  d'estacions fan `requireAdmin()`, perquè un UPDATE bloquejat per RLS no
+  dona error, simplement no fa res.
+- `sendEmailTo` comprova amb la sessió de l'usuari que la sessió és seva
+  abans de l'enviament, que fa servir la clau de servei (salta RLS).
+- Registre sense confirmació per correu (Supabase: "Allow new users to sign
+  up" activat, "Confirm email" desactivat). Si algun dia s'activa la
+  confirmació, `signUp` ja mostra "Confirma'l des del correu".
+- Nou administrador: `insert into admins (user_id) select id from auth.users
+  where email = '...';` a l'editor SQL.
+- Esborrar un usuari: primer les seves sessions i participants (les FK a
+  auth.users no són en cascada), després des d'Authentication → Users.
 
 ## Com funciona (el que no es veu al codi d'un cop d'ull)
 - Només es guarden **pulsacions** (hora del servidor de la Pi); tots els temps
@@ -63,6 +61,10 @@ per a hyrox.ddns.net). Guia: `deploy/README.md`. **Una migració nova s'aplica
 sempre abans de desplegar el codi que la necessita.**
 
 ## Pendent / idees
+- [ ] Provar 1.3 en producció amb un compte de prova: no veu res de
+      l'operador, estacions de només lectura, participant + sessió + correu.
+      Després esborrar-lo (dades primer). Confirmar també que els dos ajustos
+      d'Auth de Supabase estan fets.
 - [ ] Confirmar al mòbil que el bip de canvi de participant sona diferent.
 - [ ] Omplir el pes de les estacions (ara només es mostra la distància).
 - [x] Especificació actualitzada a la versió 1.1 (reflecteix l'app en producció).
@@ -85,6 +87,8 @@ sempre abans de desplegar el codi que la necessita.**
       Si cal comptar més de pressa, caldria una cua de hits al client.
 - [ ] Opcional: filtrar els participants inactius (no s'esborren) i la
       unicitat de l'email, que la base de dades no comprova.
+- [ ] Opcional (1.3): canviar o recuperar la contrasenya; ara no hi ha
+      pantalla per fer-ho (només des del panell de Supabase).
 
 ## Proves locals
 - `web/.env.local` (no és al git) amb SUPABASE_URL, SUPABASE_ANON_KEY,

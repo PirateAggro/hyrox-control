@@ -4,6 +4,7 @@
  *   per cada estació visitada (en l'ordre de la visita):
  *     <participant> – <estació>      (cada participant)
  *     Equip – <estació>              (només en mode equip)
+ *     Canvi participant – <estació>  (HANDOVER; si n'hi ha hagut)
  *     <participant> – <estació> – hits (cada participant; només si en aquella
  *                                      estació s'han comptat hits)
  *     Roxzone – <estació>            (TRANSITION; si n'hi ha hagut)
@@ -20,6 +21,7 @@ export type SummaryRow = {
   kind:
     | "participant"
     | "team"
+    | "handover"
     | "transition"
     | "run"
     | "hits"
@@ -65,6 +67,14 @@ export function summaryRows(
         label: `Equip – ${sName(st)}`,
         stationId: st,
         ms: totals.teamStation[st],
+      });
+    // Part del temps d'equip que no és de cap participant.
+    if (totals.handover[st] !== undefined)
+      rows.push({
+        kind: "handover",
+        label: `Canvi participant – ${sName(st)}`,
+        stationId: st,
+        ms: totals.handover[st],
       });
     // Hits de l'última estació: tots els participants (0 si algú no n'ha fet),
     // perquè es vegi la comparació, però només si n'hi ha hagut algun.
@@ -114,7 +124,9 @@ export function summaryRows(
 
 /** El valor que es mostra d'una línia: temps, o "12 hits". */
 export function formatRowValue(row: SummaryRow) {
-  return row.kind === "hits" ? `${row.count ?? 0} hits` : formatDuration(row.ms);
+  return row.kind === "hits"
+    ? `${row.count ?? 0} hits`
+    : formatDuration(row.ms);
 }
 
 /** 83 s → "1:23"; 3723 s → "1:02:03". */

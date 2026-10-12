@@ -16,6 +16,7 @@ import { formatDuration } from "./summary.ts";
 const KIND_LABEL: Record<SummaryRow["kind"], string> = {
   participant: "Prova",
   team: "Equip",
+  handover: "Canvi participant",
   transition: "Roxzone",
   run: "Run",
   hits: "Hits",
@@ -34,7 +35,9 @@ export function toCsv(
     stations: Record<string, string>;
   },
 ) {
-  const lines = [["Tipus", "Participant", "Estació", "Segons", "Temps", "Hits"]];
+  const lines = [
+    ["Tipus", "Participant", "Estació", "Segons", "Temps", "Hits"],
+  ];
   for (const r of rows) {
     const hits = r.kind === "hits";
     lines.push([

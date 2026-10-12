@@ -33,3 +33,21 @@ export async function closeStaleSessions() {
     .in("id", stale);
   revalidatePath("/");
 }
+
+/**
+ * Esborra una sessió completament: les pulsacions i els participants de la
+ * sessió s'esborren en cascada. No es pot desfer; la pantalla ho demana
+ * confirmar abans. RLS només deixa esborrar les sessions de l'usuari.
+ */
+export async function deleteSession(
+  sessionId: string,
+): Promise<{ ok: boolean }> {
+  const { supabase } = await requireOperator();
+  const { data, error } = await supabase
+    .from("sessions")
+    .delete()
+    .eq("id", sessionId)
+    .select("id");
+  revalidatePath("/");
+  return { ok: !error && (data ?? []).length === 1 };
+}

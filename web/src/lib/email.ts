@@ -8,7 +8,7 @@
  * emails dels participants només els ha de poder veure l'operador"), amb el
  * CSV complet de la sessió.
  */
-import nodemailer from "nodemailer";
+import nodemailer, { type SendMailOptions } from "nodemailer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadSession, type EmailLog } from "@/lib/sessions";
 import { replay } from "@/lib/timing/engine";
@@ -17,6 +17,22 @@ import { toCsv } from "@/lib/timing/csv";
 
 export function mailConfigured() {
   return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+}
+
+/** Envia un correu des del compte de Gmail del servidor. */
+export async function sendMail(mail: {
+  to: string;
+  subject: string;
+  text: string;
+  attachments?: SendMailOptions["attachments"];
+}) {
+  const user = process.env.GMAIL_USER!;
+  await nodemailer
+    .createTransport({
+      service: "gmail",
+      auth: { user, pass: process.env.GMAIL_APP_PASSWORD },
+    })
+    .sendMail({ from: `Hyrox Control <${user}>`, ...mail });
 }
 
 const madrid = (iso: string, opts: Intl.DateTimeFormatOptions) =>
@@ -91,29 +107,22 @@ export async function sendSessionEmailTo(
       .map((r) => `${r.label}: ${formatRowValue(r)}`)
       .join("\n");
 
-    const user = process.env.GMAIL_USER!;
-    await nodemailer
-      .createTransport({
-        service: "gmail",
-        auth: { user, pass: process.env.GMAIL_APP_PASSWORD },
-      })
-      .sendMail({
-        from: `Hyrox Control <${user}>`,
-        to: person.email,
-        subject: `Hyrox – resultats del ${day}`,
-        text:
-          `Hola ${person.name},\n\n` +
-          `Aquí tens els resultats de la sessió Hyrox del ${day}. ` +
-          `El detall amb els temps exactes és al fitxer CSV adjunt.\n\n` +
-          `${table}\n`,
-        attachments: [
-          {
-            filename: `hyrox-${stamp}.csv`,
-            content: toCsv(rows, names),
-            contentType: "text/csv; charset=utf-8",
-          },
-        ],
-      });
+    await sendMail({
+      to: person.email,
+      subject: `Hyrox – resultats del ${day}`,
+      text:
+        `Hola ${person.name},\n\n` +
+        `Aquí tens els resultats de la sessió Hyrox del ${day}. ` +
+        `El detall amb els temps exactes és al fitxer CSV adjunt.\n\n` +
+        `${table}\n`,
+      attachments: [
+        {
+          filename: `hyrox-${stamp}.csv`,
+          content: toCsv(rows, names),
+          contentType: "text/csv; charset=utf-8",
+        },
+      ],
+    });
 
     await record({ sentAt: new Date().toISOString(), error: null });
     return { ok: true };

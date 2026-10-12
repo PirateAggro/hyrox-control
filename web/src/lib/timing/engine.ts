@@ -8,6 +8,8 @@
  *
  *   tram d'ESTACIÓ (estació e, participant p) → "Usuari p – Prova e"
  *                                              i "Equip – Prova e"
+ *   tram de HANDOVER a l'estació e            → "Canvi participant – e"
+ *                                              i "Equip – Prova e"
  *   tram de TRANSITION després de l'estació e → "Roxzone – e" (a la pantalla)
  *   tram de RUN després de l'estació e        → "Equip – Run e"
  *   de START a FINISHED                       → "Equip – Total Hyrox"
@@ -29,6 +31,12 @@
  * torna, el comptador continua on era; i tornar a l'última estació amb CHANGE
  * STATION també continua el recompte.
  *
+ * HANDOVER ("PARTICIPANT TRANSITION", només en mode equip) és el temps de
+ * canviar de participant (agafar el material i començar). Atura el comptador
+ * del participant, però l'estació (equip) i el total continuen. Només se'n
+ * surt tocant un participant (SWITCH), que pot ser qualsevol, també el
+ * mateix d'abans; a partir d'aquí torna a comptar el seu temps.
+ *
  * PAUSA atura tots els comptadors: tanca el tram obert i no n'obre cap fins a
  * RESUME, que en torna a obrir un de la mateixa fase, estació i participant. El
  * temps de pausa no compta enlloc, ni al total: el total és la suma de trams.
@@ -45,6 +53,7 @@ export type PressKind =
   | "RUN"
   | "NEXT_STATION"
   | "CHANGE_STATION"
+  | "HANDOVER"
   | "PAUSE"
   | "RESUME"
   | "HIT"
@@ -67,7 +76,8 @@ export type SessionContext = {
   stations: string[];
 };
 
-export type Phase = "idle" | "station" | "transition" | "run" | "finished";
+export type Phase =
+  "idle" | "station" | "handover" | "transition" | "run" | "finished";
 
 export type State = {
   phase: Phase;
@@ -90,6 +100,8 @@ export type Totals = {
   /** participant → estació → ms */
   participantStation: Record<string, ByKey>;
   teamStation: ByKey;
+  /** Canvis de participant (HANDOVER) per estació; també són a teamStation. */
+  handover: ByKey;
   transition: ByKey;
   run: ByKey;
   /** participant → estació → nombre de hits (només a l'última estació). */
@@ -124,6 +136,7 @@ function emptyTotals(): Totals {
   return {
     participantStation: {},
     teamStation: {},
+    handover: {},
     transition: {},
     run: {},
     hits: {},
@@ -145,6 +158,10 @@ function closeSegment(state: State, totals: Totals, until: number) {
     const perStation = (totals.participantStation[state.participantId] ??= {});
     add(perStation, s, ms);
     add(totals.teamStation, s, ms);
+  } else if (state.phase === "handover") {
+    // Temps de l'estació (equip), però de cap participant.
+    add(totals.teamStation, s, ms);
+    add(totals.handover, s, ms);
   } else if (state.phase === "transition") {
     add(totals.transition, s, ms);
   } else if (state.phase === "run") {
@@ -161,6 +178,7 @@ export function allowedActions(state: State, ctx: SessionContext) {
   const none = {
     start: false,
     switchTo: [] as string[],
+    handover: false,
     transition: false,
     run: false,
     next: false,
@@ -190,6 +208,7 @@ export function allowedActions(state: State, ctx: SessionContext) {
       return {
         ...none,
         switchTo,
+        handover: ctx.participants.length > 1,
         transition: true,
         run: true,
         next: nextStationAfter(state.stationId, ctx) !== null,
@@ -199,6 +218,14 @@ export function allowedActions(state: State, ctx: SessionContext) {
         finish: true,
       };
     }
+    case "handover":
+      // Només se'n surt tocant un participant (qualsevol, també el d'abans).
+      return {
+        ...none,
+        switchTo: ctx.participants,
+        pause: true,
+        finish: true,
+      };
     case "transition":
       return {
         ...none,
@@ -278,7 +305,18 @@ export function applyPress(
       closeSegment(state, totals, press.at);
       return {
         ...base,
+        phase: "station",
         participantId: press.participantId!,
+        segmentStart: press.at,
+      };
+
+    case "HANDOVER":
+      if (!allowed.handover) fail("PARTICIPANT TRANSITION no està permès ara");
+      closeSegment(state, totals, press.at);
+      return {
+        ...base,
+        phase: "handover",
+        participantId: null,
         segmentStart: press.at,
       };
 
@@ -387,6 +425,7 @@ export type Action =
   | { kind: "RUN" }
   | { kind: "NEXT_STATION" }
   | { kind: "CHANGE_STATION"; stationId: string }
+  | { kind: "HANDOVER" }
   | { kind: "PAUSE" }
   | { kind: "RESUME" }
   | { kind: "HIT" }
@@ -430,7 +469,11 @@ export function buildPress(
 }
 
 /** Hits d'un participant a una estació (0 si no n'ha fet cap). */
-export function hitsOf(totals: Totals, participantId: string, stationId: string) {
+export function hitsOf(
+  totals: Totals,
+  participantId: string,
+  stationId: string,
+) {
   return totals.hits[participantId]?.[stationId] ?? 0;
 }
 

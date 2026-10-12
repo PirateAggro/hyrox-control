@@ -4,6 +4,7 @@ import type { LoadedSession } from "@/lib/sessions";
 import { group, groupHeader } from "@/components/ui";
 
 const ROW_STYLE: Record<string, string> = {
+  handover: "pl-8 text-muted",
   transition: "pl-8 text-muted",
   run: "pl-8 text-muted",
   hits: "pl-8",

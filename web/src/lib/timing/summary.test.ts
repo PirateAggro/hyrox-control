@@ -118,3 +118,24 @@ test("hits: línia per participant després d'Equip, també amb 0; cap si no n'h
     false,
   );
 });
+
+test("canvi de participant: línia pròpia després de la d'equip", () => {
+  const totals = run(ctx, [
+    [{ kind: "START" }, 0],
+    [{ kind: "HANDOVER" }, 10],
+    [{ kind: "SWITCH", participantId: "U2" }, 6],
+    [{ kind: "TRANSITION" }, 20],
+    [{ kind: "FINISHED" }, 3],
+  ]);
+  const rows = summaryRows(totals, ctx, names, "team");
+  assert.deepEqual(
+    rows.slice(0, 5).map((r) => `${r.label} ${formatDuration(r.ms)}`),
+    [
+      "Cristina – SkiErg 0:10",
+      "Judith – SkiErg 0:20",
+      "Equip – SkiErg 0:36",
+      "Canvi participant – SkiErg 0:06",
+      "Roxzone – SkiErg 0:03",
+    ],
+  );
+});

@@ -2,13 +2,8 @@ import Link from "next/link";
 import { requireOperator } from "@/lib/auth";
 import { statusOf, toPress } from "@/lib/sessions";
 import { CloseStale } from "./close-stale";
-import { chevron, group, groupHeader, row } from "@/components/ui";
-
-const STATUS_STYLE = {
-  completada: "text-success",
-  interrompuda: "text-danger",
-  "en curs": "text-tint",
-} as const;
+import { SessionList, type SessionItem } from "./session-list";
+import { group, groupHeader } from "@/components/ui";
 
 export default async function HomePage() {
   const { supabase } = await requireOperator();
@@ -33,16 +28,26 @@ export default async function HomePage() {
       )
         .sort((a, b) => a.position - b.position)
         .map((p) => p.participants.name);
+      // Hora de START: l'inici real (started_at és quan es va crear).
+      const start = presses.find((p) => p.kind === "START");
       return {
         id: s.id,
-        startedAt: s.started_at,
+        startMs: start ? start.at : Date.parse(s.started_at),
         names,
         presses,
         status: statusOf(presses, s.closed_at),
       };
     })
     // Sessions creades però mai començades: no tenen res a mostrar.
-    .filter((s) => s.presses.length > 0);
+    .filter((s) => s.presses.length > 0)
+    // De la més nova a la més antiga.
+    .sort((a, b) => b.startMs - a.startMs)
+    .map((s): SessionItem => ({
+      id: s.id,
+      startedAt: new Date(s.startMs).toISOString(),
+      names: s.names,
+      status: s.status,
+    }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,34 +66,7 @@ export default async function HomePage() {
             Encara no n&apos;hi ha cap.
           </p>
         ) : (
-          <ul className={group}>
-            {sessions.map((s) => (
-              <li key={s.id}>
-                <Link
-                  href={`/control/${s.id}`}
-                  prefetch={false}
-                  className={`${row} active:bg-black/5`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[17px]">
-                      {s.names.join(", ")}
-                    </span>
-                    <span className="text-[13px] text-muted">
-                      {new Date(s.startedAt).toLocaleString("ca-ES", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                        timeZone: "Europe/Madrid",
-                      })}
-                    </span>
-                  </span>
-                  <span className={`text-[15px] ${STATUS_STYLE[s.status]}`}>
-                    {s.status}
-                  </span>
-                  <span className={chevron}>›</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <SessionList sessions={sessions} />
         )}
       </section>
     </div>

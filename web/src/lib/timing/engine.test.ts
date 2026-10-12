@@ -269,7 +269,13 @@ test("HIT: no durant la Roxzone, el Run ni la pausa; i un hit d'un altre es rebu
       replay(
         [
           ...y.presses,
-          { seq: last.seq + 1, kind: "HIT", at: last.at + 1, participantId: "U2", stationId: "S8" },
+          {
+            seq: last.seq + 1,
+            kind: "HIT",
+            at: last.at + 1,
+            participantId: "U2",
+            stationId: "S8",
+          },
         ],
         team,
       ),
@@ -368,6 +374,7 @@ test("invariant: total = proves + transicions + runs, en 500 sessions a l'atzar"
         ...a.switchTo.map(
           (p) => ({ kind: "SWITCH", participantId: p }) as Action,
         ),
+        ...(a.handover ? [{ kind: "HANDOVER" } as Action] : []),
         ...(a.transition ? [{ kind: "TRANSITION" } as Action] : []),
         ...(a.run ? [{ kind: "RUN" } as Action] : []),
         ...(a.next ? [{ kind: "NEXT_STATION" } as Action] : []),
@@ -385,12 +392,12 @@ test("invariant: total = proves + transicions + runs, en 500 sessions a l'atzar"
     const now = x.presses.at(-1)!.at + 12_345;
     for (const t of [x.result().totals, x.result(now).totals])
       assert.equal(t.total, sumOfSegments(t), `sessió ${run}`);
-    // El temps d'equip a cada prova = suma dels seus participants.
+    // El temps d'equip a cada prova = suma dels seus participants + canvis.
     const t = x.result().totals;
     for (const st of Object.keys(t.teamStation)) {
       const parts = ctx.participants.reduce(
         (acc, p) => acc + (t.participantStation[p]?.[st] ?? 0),
-        0,
+        t.handover[st] ?? 0,
       );
       assert.equal(t.teamStation[st], parts, `sessió ${run}, ${st}`);
     }
@@ -468,4 +475,70 @@ test("a l'última prova també es pot pausar", () => {
     .press({ kind: "START" })
     .press({ kind: "CHANGE_STATION", stationId: "S8" }, 5);
   assert.equal(allowedActions(x.result().state, team).pause, true);
+});
+
+test("PARTICIPANT TRANSITION: atura el participant, no l'estació ni el total", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "HANDOVER" }, 30) // U1: 30 s
+    .press({ kind: "SWITCH", participantId: "U2" }, 8) // canvi: 8 s
+    .press({ kind: "HANDOVER" }, 40) // U2: 40 s
+    .press({ kind: "SWITCH", participantId: "U2" }, 5) // canvi: 5 s, torna U2
+    .press({ kind: "TRANSITION" }, 10); // U2: 10 s més
+  const { state, totals } = x.result();
+
+  assert.equal(state.phase, "transition");
+  assert.equal(sec(totals.participantStation.U1.S1), 30);
+  assert.equal(sec(totals.participantStation.U2.S1), 50);
+  assert.equal(sec(totals.handover.S1), 13);
+  assert.equal(sec(totals.teamStation.S1), 93);
+  assert.equal(sec(totals.total), 93);
+});
+
+test("PARTICIPANT TRANSITION: només se'n surt tocant un participant", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "SWITCH", participantId: "U2" }, 10)
+    .press({ kind: "HANDOVER" }, 10);
+  const a = allowedActions(x.result().state, team);
+  // Qualsevol participant, també el d'abans (U2).
+  assert.deepEqual(a.switchTo, ["U1", "U2"]);
+  assert.equal(a.handover, false);
+  assert.equal(a.transition, false);
+  assert.equal(a.run, false);
+  assert.equal(a.next, false);
+  assert.equal(a.change, false);
+  assert.equal(a.hit, false);
+  assert.equal(a.pause, true);
+  assert.equal(a.finish, true);
+  assert.throws(() => x.press({ kind: "RUN" }, 1), InvalidPress);
+
+  // Cronòmetre en directe: el canvi corre, el participant no.
+  const now = x.presses.at(-1)!.at + 7000;
+  const live = x.result(now).totals;
+  assert.equal(sec(live.handover.S1), 7);
+  assert.equal(sec(live.participantStation.U2.S1), 10);
+  assert.equal(sec(live.teamStation.S1), 27);
+});
+
+test("PARTICIPANT TRANSITION: no en mode individual ni fora de l'estació", () => {
+  const solo1 = session(solo).press({ kind: "START" });
+  assert.equal(allowedActions(solo1.result().state, solo).handover, false);
+  assert.throws(() => solo1.press({ kind: "HANDOVER" }, 1), InvalidPress);
+
+  const x = session(team).press({ kind: "START" }).press({ kind: "RUN" }, 5);
+  assert.equal(allowedActions(x.result().state, team).handover, false);
+});
+
+test("PARTICIPANT TRANSITION: la pausa hi torna, i HYROX FINISHED el tanca", () => {
+  const x = session(team)
+    .press({ kind: "START" })
+    .press({ kind: "HANDOVER" }, 10)
+    .press({ kind: "PAUSE" }, 4)
+    .press({ kind: "RESUME" }, 100)
+    .press({ kind: "FINISHED" }, 6);
+  const { state, totals } = x.result();
+  assert.equal(state.phase, "finished");
+  assert.equal(sec(totals.handover.S1), 10);
+  assert.equal(sec(totals.total), 20);
 });

@@ -19,6 +19,35 @@ de l'operador original (administrador). Migracions 1–6 aplicades a Supabase
 (la 6, `20261012000006_users.sql`, afegeix `owner_id`, la taula `admins`,
 `is_admin()` i les polítiques RLS per usuari).
 
+## ⚠️ Pendent de desplegar: versió 1.4 (12/10/2026)
+Fet i provat en local (tsc, eslint, 35 tests; /login, /forgot i /reset es
+veuen bé al mòbil). No provat al navegador amb sessió (cal la contrasenya de
+l'operador): pantalla de control, esborrar sessions ni el correu de
+recuperació. Ordre:
+1. Supabase → SQL editor: `supabase/migrations/20261012000007_handover.sql`
+   (afegeix HANDOVER al check de `presses.kind`). Sense ella, el primer
+   PARTICIPANT TRANSITION tancaria la sessió.
+2. Desplegar a la Pi (`./deploy.sh`).
+3. Provar al mòbil: sessió d'equip amb PARTICIPANT TRANSITION (el temps del
+   participant s'atura, l'estació i el total no; només se'n surt tocant un
+   participant), resultats amb "Canvi participant – <estació>"; esborrar una
+   sessió de prova; "Has oblidat la contrasenya?" amb el compte de prova.
+
+Què hi ha:
+- **PARTICIPANT TRANSITION** (intern `HANDOVER`, fase `handover`): suma a
+  `teamStation` i a `totals.handover`, no a cap participant. Només en mode
+  equip i des de la fase d'estació. Se'n surt amb SWITCH a qualsevol
+  participant (també el mateix). Fons turquesa; en sortir torna el d'abans.
+- **Inici**: ordenat per l'hora de START (abans per `started_at`, que és la
+  creació). Paperera a cada fila → confirmació → `deleteSession` (cascada a
+  presses i session_participants).
+- **Recuperar contrasenya**: `/forgot` → `auth.admin.generateLink` (clau de
+  servei) → correu pel Gmail de l'app amb `${SITE_URL}/reset?token_hash=…`.
+  El token es valida en desar (`verifyOtp`), no en obrir l'enllaç. `SITE_URL`
+  per defecte és https://hyrox.ddns.net (no cal tocar el .env de la Pi; en
+  local, `SITE_URL=http://localhost:3100`). Límit d'un correu per minut i
+  adreça (en memòria). Resposta idèntica hi hagi compte o no.
+
 ## Usuaris (1.3)
 - `owner_id default auth.uid()` a participants i sessions: el codi no passa
   mai el propietari. RLS filtra per propietari; session_participants i
@@ -87,8 +116,9 @@ sempre abans de desplegar el codi que la necessita.**
       Si cal comptar més de pressa, caldria una cua de hits al client.
 - [ ] Opcional: filtrar els participants inactius (no s'esborren) i la
       unicitat de l'email, que la base de dades no comprova.
-- [ ] Opcional (1.3): canviar o recuperar la contrasenya; ara no hi ha
-      pantalla per fer-ho (només des del panell de Supabase).
+- [x] Recuperar la contrasenya per correu (1.4).
+- [ ] Opcional: canviar la contrasenya amb la sessió oberta (ara cal fer
+      servir "Has oblidat la contrasenya?").
 
 ## Proves locals
 - `web/.env.local` (no és al git) amb SUPABASE_URL, SUPABASE_ANON_KEY,

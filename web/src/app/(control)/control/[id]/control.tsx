@@ -19,10 +19,12 @@ import { SessionSummary } from "@/components/session-summary";
 import { closeSession, press, type PressResult } from "./actions";
 
 /**
- * Colors del sistema d'Apple per als cinc botons. `tint` és el fons suau que
+ * Colors del sistema d'Apple per als botons (PARTICIPANT TRANSITION, només en
+ * mode equip, i els cinc de sempre). `tint` és el fons suau que
  * pren la pantalla quan és l'últim botó premut.
  */
 const COLORS = {
+  HANDOVER: { solid: "#30B0C7", text: "#fff" },
   TRANSITION: { solid: "#FF9500", text: "#fff" },
   RUN: { solid: "#34C759", text: "#fff" },
   NEXT_STATION: { solid: "#007AFF", text: "#fff" },
@@ -32,17 +34,24 @@ const COLORS = {
 } as const;
 
 /**
- * Color de fons segons l'últim dels cinc botons premut. Els canvis de
- * participant no el canvien; CONTINUAR torna el color d'abans de la pausa.
+ * Color de fons segons l'últim botó premut. Els canvis de participant no el
+ * canvien; CONTINUAR torna el color d'abans de la pausa, i tocar un
+ * participant per sortir de PARTICIPANT TRANSITION, el d'abans del canvi.
  */
 function backgroundKind(presses: Press[]) {
   let current: PressKind | null = null;
   let beforePause: PressKind | null = null;
+  let beforeHandover: PressKind | null = null;
   for (const p of presses) {
     if (p.kind === "PAUSE") {
       beforePause = current;
       current = "PAUSE";
     } else if (p.kind === "RESUME") current = beforePause;
+    else if (p.kind === "HANDOVER") {
+      beforeHandover = current;
+      current = "HANDOVER";
+    } else if (p.kind === "SWITCH" && current === "HANDOVER")
+      current = beforeHandover;
     else if (p.kind in COLORS) current = p.kind;
   }
   return current as keyof typeof COLORS | null;
@@ -54,6 +63,7 @@ const HIT_COLOR = { solid: "#FF2D55", text: "#fff" } as const;
 const PHASE_LABEL = {
   idle: "Preparats",
   station: "Estació",
+  handover: "Canvi participant",
   transition: "Roxzone",
   run: "Run",
   finished: "Acabat",
@@ -101,6 +111,7 @@ export function Control({
   const running =
     !offline &&
     (state.phase === "station" ||
+      state.phase === "handover" ||
       state.phase === "transition" ||
       state.phase === "run");
 
@@ -210,11 +221,13 @@ export function Control({
       ? 0
       : state.phase === "station"
         ? totals.teamStation[st]
-        : state.phase === "transition"
-          ? totals.transition[st]
-          : state.phase === "run"
-            ? totals.run[st]
-            : 0;
+        : state.phase === "handover"
+          ? totals.handover[st]
+          : state.phase === "transition"
+            ? totals.transition[st]
+            : state.phase === "run"
+              ? totals.run[st]
+              : 0;
 
   if (state.phase === "idle")
     return (
@@ -256,11 +269,22 @@ export function Control({
     );
 
   const coloredButtons: {
-    kind: "TRANSITION" | "RUN" | "NEXT_STATION" | "CHANGE_STATION";
+    kind: "HANDOVER" | "TRANSITION" | "RUN" | "NEXT_STATION" | "CHANGE_STATION";
     label: string;
     enabled: boolean;
     onPress: () => void;
   }[] = [
+    // Només en mode equip: el temps de canviar de participant.
+    ...(session.mode === "team"
+      ? [
+          {
+            kind: "HANDOVER" as const,
+            label: "PARTICIPANT TRANSITION",
+            enabled: allowed.handover,
+            onPress: () => sendWithBeep({ kind: "HANDOVER" }),
+          },
+        ]
+      : []),
     {
       kind: "TRANSITION",
       label: "ROXZONE",
@@ -325,6 +349,11 @@ export function Control({
           l'última estació el nom ocupa la meitat i l'altra meitat és el
           comptador de hits de cada participant. */}
       <section className="flex flex-col gap-1.5">
+        {state.phase === "handover" && !state.paused && (
+          <p className="px-1 text-[15px] text-muted">
+            Toca el participant que comença.
+          </p>
+        )}
         {ctx.participants.map((p) => {
           const active = state.phase === "station" && state.participantId === p;
           const ms = st ? (totals.participantStation[p]?.[st] ?? 0) : 0;
@@ -366,7 +395,10 @@ export function Control({
                 }`}
                 style={
                   canHit
-                    ? { backgroundColor: HIT_COLOR.solid, color: HIT_COLOR.text }
+                    ? {
+                        backgroundColor: HIT_COLOR.solid,
+                        color: HIT_COLOR.text,
+                      }
                     : undefined
                 }
               >
@@ -380,7 +412,7 @@ export function Control({
         })}
       </section>
 
-      {/* Els cinc botons, a tota l'amplada i cadascun d'un color. */}
+      {/* Els botons, a tota l'amplada i cadascun d'un color. */}
       <section className="mt-1 flex flex-col gap-2">
         {coloredButtons.map((b) => (
           <button

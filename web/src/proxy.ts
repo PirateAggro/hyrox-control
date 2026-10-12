@@ -15,7 +15,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseConfig } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot", "/reset"];
+// Qui ja té sessió no hi ha de tornar. /reset no hi és: després de validar
+// l'enllaç l'usuari ja té sessió i encara ha de poder desar la contrasenya.
+const GUEST_ONLY = ["/login", "/register", "/forgot"];
 
 export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -55,7 +58,7 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isPublic) {
+  if (user && GUEST_ONLY.includes(path)) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

@@ -16,3 +16,13 @@ export function supabaseConfig() {
     );
   return { url, anonKey };
 }
+
+/**
+ * Adreça pública de l'aplicació, per als enllaços dels correus (recuperar la
+ * contrasenya). Es fixa aquí i no es treu de la petició: una capçalera Host
+ * falsa podria fer que l'enllaç apuntés a un altre lloc. En local:
+ * SITE_URL=http://localhost:3100 a web/.env.local.
+ */
+export function siteUrl() {
+  return (process.env.SITE_URL ?? "https://hyrox.ddns.net").replace(/\/$/, "");
+}

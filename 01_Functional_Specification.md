@@ -4,7 +4,7 @@
 # Hyrox Controller System (Hyrox Control)
 ## Functional Specification
 
-**Version:** 1.3 (12/10/2026) — reflecteix l'aplicació en producció
+**Version:** 1.4 (12/10/2026) — reflecteix l'aplicació en producció
 
 ---
 
@@ -37,6 +37,7 @@ Si no hi ha connexió en començar, l'aplicació no s'obre.
 - L'aplicació només és accessible per HTTPS.
 - **Usuaris.** Cadascú controla l'aplicació amb el seu compte (email i contrasenya, via Supabase Auth). Els participants (§3) són qui fa l'exercici i no hi tenen accés.
 - **Registre.** A la pantalla d'accés hi ha l'enllaç "Registra't", que obre un formulari amb només email i contrasenya (mínim 6 caràcters). No cal confirmar l'email: el compte queda creat i s'entra directament. No es pot registrar un email que ja té compte.
+- **Recuperar la contrasenya.** A la pantalla d'accés hi ha l'enllaç "Has oblidat la contrasenya?": es demana l'email i, si hi ha un compte, s'hi envia (des del Gmail de l'aplicació) un enllaç per triar una contrasenya nova. L'enllaç només serveix una vegada i caduca al cap d'una hora. La resposta és la mateixa hi hagi compte o no, i com a màxim s'envia un correu per minut a cada adreça.
 - **Dades de cada usuari.** Cada usuari només veu i gestiona els seus participants i les seves sessions (amb les pulsacions, els resultats i els correus). Les estacions són compartides: tothom les veu i les fa servir, però només les pot modificar l'**administrador**.
 - **Administrador.** El compte d'operador original. És propietari de totes les dades d'abans dels usuaris i l'únic que pot crear, modificar, desactivar o esborrar estacions. No veu les dades dels altres usuaris.
 - La sessió de l'usuari es renova automàticament i no pot caducar durant una prova.
@@ -59,7 +60,8 @@ Pantalla de Control → START
    ↓
 Estació 1
    ↓
-ROXZONE i/o RUN, o NEXT STATION, o CHANGE STATION   (PAUSA en qualsevol moment)
+ROXZONE i/o RUN, o NEXT STATION, o CHANGE STATION   (PAUSA en qualsevol moment;
+                                                      PARTICIPANT TRANSITION entre participants)
    ↓
 Estació 2
    ↓
@@ -69,6 +71,14 @@ Finalització (botó HYROX FINISHED + confirmació YES)
    ↓
 Resultats → enviament del correu a cada participant, amb confirmació
 ```
+
+---
+
+# 2.1 Pantalla d'inici
+
+- Botó **Nova sessió**.
+- **Darreres sessions** de l'usuari (les 20 últimes), de la més nova a la més antiga segons l'hora de START. Cada fila mostra els participants, el dia i l'hora i l'estat; tocar-la obre la sessió (els resultats, si ja ha acabat).
+- Cada fila té una paperera per **esborrar la sessió**. Abans d'esborrar apareix una pantalla de confirmació que avisa que s'esborrarà completament (temps i resultats) i que no es podrà recuperar. Els participants i les estacions no s'esborren.
 
 ---
 
@@ -140,13 +150,14 @@ Un cop seleccionats els participants i l'ordre, es passa a la pantalla de contro
 
 Estil Apple (iOS), pensat per fer-se servir amb el mòbil mentre es corre:
 
-- A dalt, dos cronòmetres: **Total** i el temps de la **fase actual** (Estació, Roxzone, Run o "En pausa").
+- A dalt, dos cronòmetres: **Total** i el temps de la **fase actual** (Estació, Canvi participant, Roxzone, Run o "En pausa").
 - A sota, en una sola línia: número i nom de l'estació, distància i pes (per exemple `1 · SkiErg · 1000 m - 25 kg`).
 - Els participants, un sota l'altre, cadascun amb el seu temps a l'estació actual. El participant actiu es marca amb una vora verda. A l'última estació, el botó de cada participant ocupa la meitat de l'amplada i l'altra meitat és el seu comptador de hits.
-- Cinc botons a tota l'amplada, un sota l'altre, cadascun d'un color:
+- Botons a tota l'amplada, un sota l'altre, cadascun d'un color (PARTICIPANT TRANSITION només en mode Equip):
 
 | Botó | Color | Nom intern |
 |---|---|---|
+| PARTICIPANT TRANSITION | Turquesa | HANDOVER |
 | ROXZONE | Taronja | TRANSITION |
 | RUN | Verd | RUN |
 | NEXT STATION | Blau | NEXT_STATION |
@@ -154,9 +165,9 @@ Estil Apple (iOS), pensat per fer-se servir amb el mòbil mentre es corre:
 | PAUSA / CONTINUAR | Gris / Groc | PAUSE / RESUME |
 
 - HYROX FINISHED: botó vermell en forma de píndola, a baix de tot.
-- **Color de fons:** en prémer un dels cinc botons, el fons de la pantalla pren un to suau del color d'aquell botó. En continuar després d'una pausa, torna el color d'abans.
+- **Color de fons:** en prémer un dels botons de color, el fons de la pantalla pren un to suau del color d'aquell botó. En continuar després d'una pausa, o en sortir de PARTICIPANT TRANSITION, torna el color d'abans.
 - **Bips de confirmació:**
-  - START i els cinc botons: un bip agut.
+  - START i els botons de color: un bip agut.
   - Canvi de participant: dos bips més greus.
   - A l'iPhone, amb l'interruptor de silenci activat, el navegador no fa sonar els bips.
 
@@ -171,6 +182,12 @@ El temps es compta en 3 nivells:
 - Total Hyrox (suma de totes les estacions, roxzones i runs)
 
 **Canvi de participant.** En mode Equip, en prémer el nom d'un altre participant finalitza el comptador del participant actual a l'estació i comença el del nou, i segueixen comptant Equip – Estació i Total. L'ordre definit inicialment és només indicatiu. Dins d'una mateixa estació els participants es poden alternar diverses vegades: el temps d'un participant que torna a entrar s'acumula. Durant una Roxzone o un Run no es pot canviar de participant.
+
+**PARTICIPANT TRANSITION** (intern: HANDOVER; només en mode Equip): el temps de canviar de participant (agafar el material i començar).
+- Es prem durant una estació. Atura el comptador del participant actual; continuen el d'Equip – Estació i el Total.
+- Mentre està activat, cap participant no es marca com a actiu i la pantalla diu "Toca el participant que comença". L'única manera de sortir-ne és tocar un participant (qualsevol, també el d'abans): en aquell moment comença a comptar el seu temps. També es pot prémer PAUSA (CONTINUAR hi torna) i HYROX FINISHED; la resta de botons i els hits no.
+- El temps s'acumula per estació com a "Canvi participant – <estació>". Forma part del temps d'Equip de l'estació, però de cap participant: Equip – Estació = suma dels participants + canvis.
+- Es pot continuar canviant de participant directament, sense aquest botó; llavors el temps del canvi queda al participant que surt, com fins ara.
 
 Quan s'acaba una estació es pot prémer ROXZONE, RUN, NEXT STATION o CHANGE STATION.
 
@@ -206,7 +223,7 @@ Quan s'acaba una estació es pot prémer ROXZONE, RUN, NEXT STATION o CHANGE STA
 - Al costat de cada participant hi ha un botó **+1 HIT** amb el seu recompte. Només es pot prémer el del participant actiu; els altres mostren el seu recompte.
 - Cada toc suma un hit al participant actiu. No atura ni canvia cap comptador de temps.
 - Els hits es guarden per participant: si es canvia de participant i després es torna al primer, el seu comptador continua on era. Si es torna a l'última estació amb CHANGE STATION, també continua.
-- No es poden comptar hits durant una Roxzone, un Run ni en pausa.
+- No es poden comptar hits durant una Roxzone, un Run, un PARTICIPANT TRANSITION ni en pausa.
 
 **HYROX FINISHED:** demana confirmació. Amb YES s'aturen tots els comptadors i la sessió queda completada, sigui quina sigui l'estació on s'estigui. Amb NO es continua. Després es mostra la pantalla de resultats (§7).
 
@@ -249,6 +266,8 @@ TOTAL HYROX
 
 Si a l'última estació s'han comptat hits, després de la línia d'Equip (o de la del participant, en mode Individual) hi ha una línia per participant amb el seu recompte (`USUARI 1 - PROVA 8 - HITS`), també amb 0 si algú no n'ha fet cap.
 
+Si a una estació s'ha fet servir PARTICIPANT TRANSITION, després de la línia d'Equip hi ha la línia `CANVI PARTICIPANT - PROVA n`.
+
 Les línies de Roxzone i Run només hi surten si s'han fet. A la pantalla els temps es mostren truncats al segon (com un cronòmetre); al CSV hi ha els segons exactes.
 
 ---
@@ -280,7 +299,7 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 
 - Separador `;`, decimals amb coma, UTF-8 amb BOM.
 - Columnes: `Tipus;Participant;Estació;Segons;Temps;Hits`.
-- Tipus: Prova, Equip, Hits, Roxzone, Run, Total proves, Total Hyrox.
+- Tipus: Prova, Equip, Canvi participant, Hits, Roxzone, Run, Total proves, Total Hyrox.
 - Les línies de tipus Hits deixen buits Segons i Temps i porten el recompte a la columna Hits.
 - Segons amb mil·lèsimes (per exemple `21,653`) i temps en format de cronòmetre (`0:21`).
 
@@ -296,6 +315,11 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 ---
 
 # Historial de canvis
+
+**1.4 (12/10/2026)**
+- Botó **PARTICIPANT TRANSITION** en mode Equip: el temps de canvi de participant compta a l'estació i al total, però a cap participant; se'n surt tocant un participant. Línia pròpia als resultats, al correu i al CSV.
+- Inici: sessions de la més nova a la més antiga (hora de START) i botó per esborrar-ne una, amb confirmació.
+- Recuperar la contrasenya per correu.
 
 **1.3 (12/10/2026)**
 - Diversos usuaris: registre amb email i contrasenya des de la pantalla d'accés, sense confirmació per correu.

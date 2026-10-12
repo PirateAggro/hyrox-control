@@ -13,74 +13,129 @@ import {
   rowLabel,
 } from "@/components/ui";
 
-/** Formulari d'email i contrasenya, compartit per /login i /register. */
+type Mode = "login" | "register" | "forgot" | "reset";
+
+const TEXT: Record<
+  Mode,
+  { subtitle: string; submit: string; pending: string }
+> = {
+  login: { subtitle: "Entrar", submit: "Entrar", pending: "Entrant…" },
+  register: {
+    subtitle: "Crear un compte",
+    submit: "Crear compte",
+    pending: "Creant…",
+  },
+  forgot: {
+    subtitle: "Recuperar la contrasenya",
+    submit: "Enviar l'enllaç",
+    pending: "Enviant…",
+  },
+  reset: {
+    subtitle: "Contrasenya nova",
+    submit: "Desar la contrasenya",
+    pending: "Desant…",
+  },
+};
+
+/**
+ * Formulari d'accés, compartit per /login, /register, /forgot (només email) i
+ * /reset (només la contrasenya nova).
+ */
 export function AuthForm({
   mode,
   action,
 }: {
-  mode: "login" | "register";
+  mode: Mode;
   action: (prev: LoginState, formData: FormData) => Promise<LoginState>;
 }) {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(
     action,
     undefined,
   );
-  const register = mode === "register";
+  const text = TEXT[mode];
+  const newPassword = mode === "register" || mode === "reset";
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center p-5">
       <div className="w-full max-w-sm">
         <h1 className={`${largeTitle} mb-2 text-center`}>Hyrox Control</h1>
         <p className="mb-8 text-center text-[17px] text-muted">
-          {register ? "Crear un compte" : "Entrar"}
+          {text.subtitle}
         </p>
         <form action={formAction} className="flex flex-col gap-4">
           <div className={group}>
-            <label className={fieldRow}>
-              <span className={rowLabel}>Email</span>
-              <input
-                name="email"
-                type="email"
-                required
-                autoComplete={register ? "email" : "username"}
-                placeholder="nom@correu.cat"
-                className={inputBare}
-              />
-            </label>
-            <label className={fieldRow}>
-              <span className={rowLabel}>Contrasenya</span>
-              <input
-                name="password"
-                type="password"
-                required
-                minLength={register ? 6 : undefined}
-                autoComplete={register ? "new-password" : "current-password"}
-                placeholder={register ? "mínim 6 caràcters" : undefined}
-                className={inputBare}
-              />
-            </label>
+            {mode !== "reset" && (
+              <label className={fieldRow}>
+                <span className={rowLabel}>Email</span>
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete={mode === "login" ? "username" : "email"}
+                  placeholder="nom@correu.cat"
+                  className={inputBare}
+                />
+              </label>
+            )}
+            {mode !== "forgot" && (
+              <label className={fieldRow}>
+                <span className={rowLabel}>Contrasenya</span>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  minLength={newPassword ? 6 : undefined}
+                  autoComplete={
+                    newPassword ? "new-password" : "current-password"
+                  }
+                  placeholder={newPassword ? "mínim 6 caràcters" : undefined}
+                  className={inputBare}
+                />
+              </label>
+            )}
           </div>
           {state?.error && (
             <p role="alert" className={`${errorText} px-4`}>
               {state.error}
             </p>
           )}
+          {state?.message && (
+            <p role="status" className="px-4 text-[15px] text-success">
+              {state.message}
+            </p>
+          )}
           <button type="submit" disabled={pending} className={button}>
-            {register
-              ? pending
-                ? "Creant…"
-                : "Crear compte"
-              : pending
-                ? "Entrant…"
-                : "Entrar"}
+            {pending ? text.pending : text.submit}
           </button>
         </form>
-        <p className="mt-6 text-center text-[15px] text-muted">
-          {register ? "Ja tens compte? " : "No tens compte? "}
-          <Link href={register ? "/login" : "/register"} className="text-tint">
-            {register ? "Entra" : "Registra't"}
-          </Link>
-        </p>
+        <div className="mt-6 flex flex-col gap-3 text-center text-[15px] text-muted">
+          {mode === "login" && (
+            <>
+              <p>
+                No tens compte?{" "}
+                <Link href="/register" className="text-tint">
+                  Registra&apos;t
+                </Link>
+              </p>
+              <Link href="/forgot" className="text-tint">
+                Has oblidat la contrasenya?
+              </Link>
+            </>
+          )}
+          {mode === "register" && (
+            <p>
+              Ja tens compte?{" "}
+              <Link href="/login" className="text-tint">
+                Entra
+              </Link>
+            </p>
+          )}
+          {(mode === "forgot" || mode === "reset") && (
+            <Link href="/login" className="text-tint">
+              Tornar a l&apos;inici de sessió
+            </Link>
+          )}
+        </div>
       </div>
     </main>
   );

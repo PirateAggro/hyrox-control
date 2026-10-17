@@ -9,6 +9,7 @@ import {
   type Action,
   type Press,
 } from "@/lib/timing/engine";
+import { mergePresses, validatePending } from "@/lib/timing/sync";
 import { PG } from "@/lib/validation";
 import { sendSessionEmailTo } from "@/lib/email";
 
@@ -18,7 +19,8 @@ import { sendSessionEmailTo } from "@/lib/email";
  *    del servidor, per corregir el desfasament del rellotge del mòbil.
  *  - invalid: la pulsació no és permesa (doble toc, etc.). No és un tall.
  *  - closed: la sessió ja no està en curs.
- *  - failed: no s'ha pogut guardar → 01 §1: és un tall i la sessió es tanca.
+ *  - failed: no s'ha pogut guardar → 01 §1: és un tall; la pantalla continua
+ *    sense connexió i ho torna a provar amb syncPresses.
  *
  * ⚠️ Cap d'aquestes actions crida revalidatePath ni refresh: la pantalla de
  * control porta l'estat al client, i tornar-la a renderitzar al servidor no
@@ -90,6 +92,73 @@ export async function press(
 }
 
 /**
+ * Resultat de la sincronització. A més dels de press:
+ *  - conflict: les pulsacions del mòbil no lliguen amb les guardades (la
+ *    sessió s'ha fet servir des d'un altre lloc). No es reintenta.
+ */
+export type SyncResult =
+  | { ok: true; presses: Press[]; serverNow: number }
+  | { ok: false; reason: "closed" | "failed" | "conflict"; message: string };
+
+/**
+ * 01 §1: guarda les pulsacions fetes sense connexió. El mòbil envia la seva
+ * llista sencera; es guarden les que falten, amb l'hora del mòbil corregida
+ * pel desfasament amb el servidor. Es pot cridar tantes vegades com calgui:
+ * les ja guardades no es tornen a guardar.
+ */
+export async function syncPresses(
+  sessionId: string,
+  local: Press[],
+): Promise<SyncResult> {
+  const now = Date.now();
+  const { supabase } = await requireOperator();
+
+  const s = await loadSession(supabase, sessionId);
+  if (!s) return { ok: false, reason: "closed", message: "Sessió no trobada." };
+
+  const merged = mergePresses(s.presses, local);
+  if (!merged)
+    return {
+      ok: false,
+      reason: "conflict",
+      message: "La sessió s'ha fet servir des d'un altre lloc.",
+    };
+  const tail = merged.slice(s.presses.length);
+  if (tail.length === 0)
+    return { ok: true, presses: s.presses, serverNow: Date.now() };
+
+  if (s.status !== "en curs")
+    return {
+      ok: false,
+      reason: "closed",
+      message: `La sessió està ${s.status}.`,
+    };
+
+  let pending: Press[];
+  try {
+    pending = validatePending(s.presses, tail, s.ctx, now);
+  } catch (e) {
+    if (e instanceof InvalidPress)
+      return { ok: false, reason: "conflict", message: e.message };
+    throw e;
+  }
+
+  const { error } = await supabase
+    .from("presses")
+    .insert(pending.map((p) => fromPress(sessionId, p)));
+  // Una altra crida ha guardat alguna d'aquestes pulsacions: la propera
+  // sincronització ja les trobarà guardades.
+  if (error)
+    return {
+      ok: false,
+      reason: "failed",
+      message: "No s'han pogut guardar les pulsacions.",
+    };
+
+  return { ok: true, presses: [...s.presses, ...pending], serverNow: Date.now() };
+}
+
+/**
  * Envia els resultats a UN participant, després que l'operador ho hagi
  * confirmat a la pantalla de resultats. En acabar la sessió no s'envia res sol.
  */
@@ -114,8 +183,9 @@ export async function sendEmailTo(
 }
 
 /**
- * 01 §1: si es torna a entrar a una sessió ja començada (recàrrega, tancar el
- * navegador, sortir i tornar), la sessió es tanca com a interrompuda.
+ * 01 §1: si es torna a entrar a una sessió ja començada des d'un mòbil que no
+ * en té la còpia local (un altre mòbil, o el navegador l'ha esborrada), la
+ * sessió es tanca com a interrompuda. Amb la còpia, es reprèn.
  * La crida el client en muntar la pantalla, no el servidor en renderitzar-la:
  * així una precàrrega d'enllaç (prefetch) no pot tancar una sessió.
  */

@@ -2,21 +2,30 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   allowedActions,
+  buildPress,
   hitsOf,
+  InvalidPress,
   replay,
   type Action,
   type Press,
   type PressKind,
 } from "@/lib/timing/engine";
 import { formatDuration } from "@/lib/timing/summary";
+import { mergePresses } from "@/lib/timing/sync";
 import { clock } from "@/lib/clock";
 import { beep } from "@/lib/beep";
+import {
+  clearLocal,
+  parseLocal,
+  readLocalRaw,
+  saveLocal,
+} from "@/lib/local-session";
 import type { LoadedSession } from "@/lib/sessions";
 import { SessionSummary } from "@/components/session-summary";
-import { closeSession, press, type PressResult } from "./actions";
+import { closeSession, press, syncPresses } from "./actions";
 
 /**
  * Colors del sistema d'Apple per als botons (PARTICIPANT TRANSITION, només en
@@ -72,12 +81,56 @@ const PHASE_LABEL = {
 const bigButton =
   "flex h-14 w-full items-center justify-center rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:opacity-30";
 
+const noSubscribe = () => () => {};
+
+/**
+ * 01 §1: en entrar, mira si el mòbil té la còpia local de la sessió. Si en té,
+ * es reprèn (també després d'una recàrrega) amb les pulsacions guardades més
+ * les pendents. Si no en té i la sessió ja havia començat, es tanca.
+ */
 export function Control({
   session,
   serverNow,
 }: {
   session: LoadedSession;
   serverNow: number;
+}) {
+  // undefined al servidor; al navegador, el text guardat o null.
+  const raw = useSyncExternalStore(
+    noSubscribe,
+    () => readLocalRaw(session.id),
+    () => undefined,
+  );
+  const initial = useMemo(() => {
+    if (raw === undefined) return undefined;
+    const local = parseLocal(raw);
+    const merged = local && mergePresses(session.presses, local);
+    if (merged) return merged;
+    return session.presses.length === 0 ? session.presses : null;
+  }, [raw, session.presses]);
+
+  if (initial === undefined) return null;
+  if (initial === null) return <CloseOnReentry sessionId={session.id} />;
+  return <Live session={session} serverNow={serverNow} initial={initial} />;
+}
+
+function CloseOnReentry({ sessionId }: { sessionId: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    clearLocal(sessionId);
+    closeSession(sessionId).finally(() => router.refresh());
+  }, [sessionId, router]);
+  return <p className="py-10 text-center text-muted">Tancant la sessió…</p>;
+}
+
+function Live({
+  session,
+  serverNow,
+  initial,
+}: {
+  session: LoadedSession;
+  serverNow: number;
+  initial: Press[];
 }) {
   const router = useRouter();
   const {
@@ -87,33 +140,70 @@ export function Control({
     stationDetails,
   } = session;
 
-  const [presses, setPresses] = useState<Press[]>(session.presses);
+  const [presses, setPresses] = useState<Press[]>(initial);
+  // Quantes pulsacions té guardades el servidor; la resta són pendents.
+  const [saved, setSaved] = useState(session.presses.length);
   // Desfasament entre el rellotge del servidor (hora de les pulsacions) i el
   // del mòbil (cronòmetres en directe). Es corregeix a cada resposta.
   const [offset, setOffset] = useState(() => serverNow - Date.now());
   const [tick, setTick] = useState(() => Date.now());
   const [pending, setPending] = useState(false);
-  const [offline, setOffline] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<null | "change" | "finish">(null);
+  const unsaved = presses.length - saved;
 
-  // 01 §1: tornar a entrar a una sessió començada la tanca (interrompuda).
-  const [reentered] = useState(() => session.presses.length > 0);
+  // 01 §1: còpia local de cada pulsació, guardada o no.
   useEffect(() => {
-    if (!reentered) return;
-    closeSession(session.id).finally(() => router.refresh());
-  }, [reentered, session.id, router]);
+    if (presses.length > 0) saveLocal(session.id, presses);
+  }, [session.id, presses]);
+
+  // 01 §1: amb pulsacions pendents, es torna a provar cada 5 s i quan el
+  // navegador avisa que torna a tenir xarxa.
+  useEffect(() => {
+    if (unsaved === 0 || syncError) return;
+    let cancelled = false;
+    let busy = false;
+    const attempt = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const r = await syncPresses(session.id, presses);
+        if (cancelled) return;
+        if (r.ok) {
+          setPresses((prev) => mergePresses(r.presses, prev) ?? prev);
+          setSaved(r.presses.length);
+          setOffset(r.serverNow - clock());
+          if (r.presses.at(-1)?.kind === "FINISHED") {
+            clearLocal(session.id);
+            router.refresh();
+          }
+        } else if (r.reason !== "failed") setSyncError(r.message);
+      } catch {
+        // Encara sense connexió.
+      } finally {
+        busy = false;
+      }
+    };
+    attempt();
+    const t = setInterval(attempt, 5000);
+    window.addEventListener("online", attempt);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      window.removeEventListener("online", attempt);
+    };
+  }, [unsaved, syncError, session.id, presses, router]);
 
   const { state, totals } = useMemo(
     () => replay(presses, ctx, tick + offset),
     [presses, ctx, tick, offset],
   );
   const running =
-    !offline &&
-    (state.phase === "station" ||
-      state.phase === "handover" ||
-      state.phase === "transition" ||
-      state.phase === "run");
+    state.phase === "station" ||
+    state.phase === "handover" ||
+    state.phase === "transition" ||
+    state.phase === "run";
 
   // Cronòmetres en directe.
   useEffect(() => {
@@ -142,7 +232,7 @@ export function Control({
   }, [running]);
 
   // El fons de tota la pantalla pren un to suau del color de l'últim botó.
-  const bg = offline ? null : backgroundKind(presses);
+  const bg = backgroundKind(presses);
   useEffect(() => {
     const body = document.body.style;
     body.transition = "background-color 300ms ease";
@@ -154,33 +244,53 @@ export function Control({
     };
   }, [bg]);
 
-  async function act(call: () => Promise<PressResult>) {
-    if (pending || offline) return;
-    setPending(true);
-    setMessage(null);
+  /**
+   * 01 §1: sense connexió, la pulsació es construeix aquí amb el mateix motor
+   * i l'hora del mòbil corregida pel desfasament. Es guarda en sincronitzar.
+   */
+  function pressLocally(action: Action) {
     try {
-      const r = await call();
+      const at = Math.max(clock() + offset, presses.at(-1)?.at ?? 0);
+      setPresses([...presses, buildPress(presses, ctx, action, at)]);
+      setTick(clock());
+    } catch (e) {
+      if (e instanceof InvalidPress) setMessage(e.message);
+      else throw e;
+    }
+  }
+
+  async function send(action: Action) {
+    if (pending) return;
+    setMessage(null);
+    setModal(null);
+    // Mentre n'hi ha de pendents, les noves van darrere, en ordre.
+    if (unsaved > 0) return pressLocally(action);
+    setPending(true);
+    try {
+      const r = await press(session.id, action);
       if (r.ok) {
         setPresses(r.presses);
+        setSaved(r.presses.length);
         setOffset(r.serverNow - clock());
         setTick(clock());
-        if (r.presses.at(-1)?.kind === "FINISHED") router.refresh();
+        if (r.presses.at(-1)?.kind === "FINISHED") {
+          clearLocal(session.id);
+          router.refresh();
+        }
       } else if (r.reason === "failed") {
-        setOffline(true); // 01 §1: tall → la sessió es tanca.
+        pressLocally(action); // 01 §1: tall → es continua sense connexió.
       } else if (r.reason === "closed") {
         router.refresh();
       } else {
         setMessage(r.message);
       }
     } catch {
-      setOffline(true); // Sense resposta: mòbil, Pi o Supabase.
+      pressLocally(action); // Sense resposta: mòbil, Pi o Supabase.
     } finally {
       setPending(false);
-      setModal(null);
     }
   }
 
-  const send = (action: Action) => act(() => press(session.id, action));
   /** Els cinc botons i START fan un bip en prémer-los. */
   const sendWithBeep = (action: Action) => {
     if (pending) return;
@@ -189,23 +299,36 @@ export function Control({
     send(action);
   };
 
-  if (reentered)
-    return <p className="py-10 text-center text-muted">Tancant la sessió…</p>;
+  const offlineBanner = syncError ? (
+    <div role="alert" className="rounded-2xl bg-danger p-4 text-white">
+      <p className="text-lg font-semibold">No es pot sincronitzar</p>
+      <p className="text-sm">
+        {syncError} Les pulsacions pendents ({unsaved}) queden només en aquest
+        mòbil.
+      </p>
+    </div>
+  ) : unsaved > 0 ? (
+    <div role="status" className="rounded-2xl bg-[#FF9500] p-3 text-white">
+      <p className="font-semibold">Sense connexió</p>
+      <p className="text-sm">
+        {unsaved === 1
+          ? "1 pulsació pendent de guardar."
+          : `${unsaved} pulsacions pendents de guardar.`}{" "}
+        Continua normalment: es guardaran quan torni la connexió.
+      </p>
+    </div>
+  ) : null;
 
-  if (offline)
+  // Acabat sense connexió: s'espera la sincronització per anar als resultats.
+  if (state.phase === "finished")
     return (
       <div className="flex flex-col gap-4">
-        <div role="alert" className="rounded-2xl bg-danger p-4 text-white">
-          <p className="text-lg font-semibold">Sense connexió</p>
-          <p className="text-sm">
-            L&apos;última pulsació no s&apos;ha pogut guardar i la sessió
-            s&apos;ha tancat. Es conserven les pulsacions guardades fins ara.
-          </p>
-        </div>
+        {offlineBanner}
+        <p className="px-1 text-[15px] text-muted">
+          Hyrox acabat. Quan totes les pulsacions estiguin guardades sortirà la
+          pantalla de resultats per enviar els correus.
+        </p>
         <SessionSummary session={{ ...session, presses }} />
-        <Link href="/" className="text-center text-tint">
-          Tornar a l&apos;inici
-        </Link>
       </div>
     );
 
@@ -317,6 +440,8 @@ export function Control({
 
   return (
     <div className="flex flex-col gap-3">
+      {offlineBanner}
+
       {/* Cronòmetres: total i fase actual. */}
       <section className="grid grid-cols-2 gap-2">
         <div className="rounded-2xl bg-card/80 p-3">

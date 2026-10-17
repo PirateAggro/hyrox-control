@@ -4,7 +4,7 @@
 # Hyrox Controller System (Hyrox Control)
 ## Functional Specification
 
-**Version:** 1.4 (12/10/2026) — reflecteix l'aplicació en producció
+**Version:** 1.5 (17/10/2026)
 
 ---
 
@@ -16,11 +16,15 @@ L'objectiu és recopilar tots els temps per participant en una base de dades Sup
 
 ## Pulsacions i connexió
 
-Cada pulsació es guarda a Supabase en el moment de prémer-la, amb l'hora del servidor de la Raspberry Pi. Els temps no es guarden: es calculen a partir de les pulsacions.
+Cada pulsació es guarda a Supabase en el moment de prémer-la, amb l'hora del servidor de la Raspberry Pi. Els temps no es guarden: es calculen a partir de les pulsacions. El mòbil en guarda, a més, una còpia local al navegador.
 
-**Tall de connexió.** Hi ha tall quan una pulsació no es pot guardar, sigui quin sigui el motiu (mòbil, Raspberry Pi o Supabase). En aquest cas apareix l'avís "Sense connexió" i la sessió es tanca. Les pulsacions ja guardades es conserven; la resta es perden. No s'envia correu.
+**Tall de connexió.** Hi ha tall quan una pulsació no es pot guardar, sigui quin sigui el motiu (mòbil, Raspberry Pi o Supabase). La sessió no s'atura: apareix l'avís "Sense connexió" amb les pulsacions pendents de guardar, i es continua prement els botons amb normalitat. Aquestes pulsacions es guarden al mòbil amb l'hora del mòbil corregida pel desfasament amb el servidor. Cada 5 segons, i quan el mòbil torna a tenir xarxa, s'envien al servidor; un cop guardades, l'avís desapareix i les pulsacions següents tornen a anar directes al servidor.
 
-Una recàrrega de la pàgina durant una sessió també la tanca. En tornar a l'inici de l'aplicació, qualsevol sessió començada que hagi quedat oberta es tanca.
+Si es prem HYROX FINISHED sense connexió, es mostra el resum i, quan totes les pulsacions estan guardades, la pantalla de resultats per enviar els correus (§7).
+
+Si les pulsacions del mòbil no lliguen amb les guardades (la sessió s'ha fet servir des d'un altre lloc), no es guarden i apareix l'avís "No es pot sincronitzar".
+
+**Recàrrega.** Si es recarrega la pàgina (o es tanca el navegador i es torna a entrar) des del mateix mòbil, la sessió es reprèn on era, amb les pulsacions pendents incloses. Sense connexió la pàgina no es pot tornar a carregar: cal no recarregar fins que torni la connexió. Si s'entra a una sessió començada des d'un mòbil que no en té la còpia, la sessió es tanca. En tornar a l'inici de l'aplicació, qualsevol sessió començada que hagi quedat oberta es tanca, excepte les que el mòbil té guardades (la còpia caduca al cap de 12 hores).
 
 Mentre hi ha una sessió en curs, la pantalla del mòbil es manté encesa.
 
@@ -29,7 +33,7 @@ Si no hi ha connexió en començar, l'aplicació no s'obre.
 ## Estat de la sessió
 
 - **Completada:** té guardada la pulsació de HYROX FINISHED.
-- **Interrompuda:** s'ha tancat per un tall o una recàrrega, sense HYROX FINISHED.
+- **Interrompuda:** s'ha tancat sense HYROX FINISHED: s'hi ha entrat des d'un altre mòbil, o ha quedat oberta i s'ha tornat a l'inici.
 - **En curs:** encara no s'ha acabat ni tancat.
 
 ## Accés i seguretat
@@ -279,9 +283,9 @@ Supabase (PostgreSQL). Taules:
 - **admins:** usuaris administradors (poden modificar les estacions).
 - **participants:** nom, email, actiu, usuari propietari.
 - **stations:** nom, ordre, distància, pes, activa.
-- **sessions:** usuari propietari, mode, dia i hora d'inici, ordre de les estacions de la sessió, moment de tancament (tall o recàrrega) i estat del correu de cada participant.
+- **sessions:** usuari propietari, mode, dia i hora d'inici, ordre de les estacions de la sessió, moment de tancament (sessió interrompuda) i estat del correu de cada participant.
 - **session_participants:** participants de la sessió i el seu ordre.
-- **presses:** pulsacions (tipus, número dins la sessió, participant, estació, hora del servidor). Una pulsació reenviada no es pot guardar dues vegades. Els hits també són pulsacions (tipus HIT).
+- **presses:** pulsacions (tipus, número dins la sessió, participant, estació, hora del servidor o, si es va prémer sense connexió, la del mòbil corregida). Una pulsació reenviada no es pot guardar dues vegades. Els hits també són pulsacions (tipus HIT).
 
 Tots els temps es calculen a partir de les pulsacions. Cada usuari autenticat només té accés als seus participants i sessions (i a les pulsacions i participants d'aquestes sessions); les estacions les llegeix tothom i només les modifica l'administrador. Ho imposa la base de dades (RLS), no només l'aplicació. Els canvis d'esquema es fan amb fitxers de migració (`supabase/migrations/`), que s'apliquen des de l'editor SQL del panell de Supabase abans de desplegar el codi que els necessita.
 
@@ -315,6 +319,10 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 ---
 
 # Historial de canvis
+
+**1.5 (17/10/2026)**
+- Sense connexió la sessió continua: les pulsacions es guarden al mòbil i s'envien al servidor quan torna la connexió. Després es poden enviar els correus.
+- Una recàrrega des del mateix mòbil reprèn la sessió en lloc de tancar-la.
 
 **1.4 (12/10/2026)**
 - Botó **PARTICIPANT TRANSITION** en mode Equip: el temps de canvi de participant compta a l'estació i al total, però a cap participant; se'n surt tocant un participant. Línia pròpia als resultats, al correu i al CSV.

@@ -11,8 +11,11 @@ import { requireOperator } from "@/lib/auth";
  *
  * La crida el client en muntar l'inici, no el servidor en renderitzar-lo: una
  * precàrrega (prefetch) de "/" no ha de poder tancar una sessió.
+ *
+ * `keep`: sessions de les quals aquest mòbil té còpia local (potser amb
+ * pulsacions sense guardar): no es tanquen, es poden reprendre.
  */
-export async function closeStaleSessions() {
+export async function closeStaleSessions(keep: string[] = []) {
   const { supabase } = await requireOperator();
   const { data: open } = await supabase
     .from("sessions")
@@ -22,7 +25,9 @@ export async function closeStaleSessions() {
   const stale = (open ?? [])
     .filter((s) => {
       const kinds = (s.presses as { kind: string }[]).map((p) => p.kind);
-      return kinds.length > 0 && !kinds.includes("FINISHED");
+      return (
+        kinds.length > 0 && !kinds.includes("FINISHED") && !keep.includes(s.id)
+      );
     })
     .map((s) => s.id);
   if (stale.length === 0) return;

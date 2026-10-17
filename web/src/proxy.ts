@@ -72,6 +72,7 @@ export const config = {
   matcher: [
     // api/health queda fora: ha de respondre sense sessió i sense dependre de
     // Supabase, perquè el healthcheck de Docker no falli si Supabase no respon.
-    "/((?!api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // El manifest i les icones també: el mòbil els demana sense sessió.
+    "/((?!api/health|_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

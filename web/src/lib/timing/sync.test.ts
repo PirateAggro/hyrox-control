@@ -94,3 +94,26 @@ test("validate: una pulsació no permesa o canviada es rebutja", () => {
     InvalidPress,
   );
 });
+
+test("validate: el START amb run inicial es reconstrueix igual", () => {
+  const pending = run([
+    { kind: "START", run: true },
+    { kind: "NEXT_STATION" },
+    { kind: "FINISHED" },
+  ]);
+  assert.equal(pending[0].stationId, undefined);
+  assert.deepEqual(validatePending([], pending, ctx, 1e9), pending);
+
+  // Un START normal no pot passar per un amb run (ni al revés).
+  const normal = run([{ kind: "START" }]);
+  assert.throws(
+    () =>
+      validatePending(
+        [],
+        [{ ...normal[0], stationId: null }, ...pending.slice(1)],
+        ctx,
+        1e9,
+      ),
+    InvalidPress,
+  );
+});

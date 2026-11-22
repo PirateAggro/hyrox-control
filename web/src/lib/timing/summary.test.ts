@@ -139,3 +139,23 @@ test("canvi de participant: línia pròpia després de la d'equip", () => {
     ],
   );
 });
+
+test("run inicial: primera línia i compta al total", () => {
+  const solo: SessionContext = { participants: ["U1"], stations: ["S1", "S2"] };
+  const totals = run(solo, [
+    [{ kind: "START", run: true }, 0],
+    [{ kind: "NEXT_STATION" }, 300],
+    [{ kind: "RUN" }, 60],
+    [{ kind: "FINISHED" }, 280],
+  ]);
+  const rows = summaryRows(totals, solo, names, "individual");
+  assert.deepEqual(
+    rows.map((r) => `${r.label} ${formatDuration(r.ms)}`),
+    [
+      "Run inicial 5:00",
+      "Cristina – SkiErg 1:00",
+      "Run – SkiErg 4:40",
+      "Total Hyrox 10:40",
+    ],
+  );
+});

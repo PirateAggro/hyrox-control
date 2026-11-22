@@ -14,6 +14,7 @@ import type { SummaryRow } from "./summary.ts";
 import { formatDuration } from "./summary.ts";
 
 const KIND_LABEL: Record<SummaryRow["kind"], string> = {
+  startRun: "Run inicial",
   participant: "Prova",
   team: "Equip",
   handover: "Canvi participant",

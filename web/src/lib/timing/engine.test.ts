@@ -542,3 +542,57 @@ test("PARTICIPANT TRANSITION: la pausa hi torna, i HYROX FINISHED el tanca", () 
   assert.equal(sec(totals.handover.S1), 10);
   assert.equal(sec(totals.total), 20);
 });
+
+test("RUN INICIAL: START corrent, i després NEXT STATION va a la primera", () => {
+  const x = session(team).press({ kind: "START", run: true });
+  const { state } = x.result();
+  assert.equal(state.phase, "run");
+  assert.equal(state.stationId, null);
+  const allowed = allowedActions(state, team);
+  assert.equal(allowed.next, true);
+  assert.equal(allowed.transition, false, "la Roxzone és d'una estació");
+  assert.deepEqual(allowed.switchTo, []);
+
+  x.press({ kind: "NEXT_STATION" }, 300)
+    .press({ kind: "SWITCH", participantId: "U2" }, 40)
+    .press({ kind: "RUN" }, 20)
+    .press({ kind: "FINISHED" }, 290);
+  const { state: end, totals } = x.result();
+  assert.equal(x.presses[1].stationId, "S1");
+  assert.equal(x.presses[1].participantId, "U1");
+  assert.equal(end.phase, "finished");
+  assert.equal(sec(totals.startRun), 300);
+  assert.equal(sec(totals.teamStation.S1), 60);
+  assert.equal(sec(totals.run.S1), 290, "el run inicial no es barreja");
+  assert.equal(sec(totals.total), 650);
+  assert.deepEqual(totals.stationOrder, ["S1"]);
+});
+
+test("RUN INICIAL: pausa, CHANGE STATION i cronòmetre en directe", () => {
+  const x = session(solo)
+    .press({ kind: "START", run: true })
+    .press({ kind: "PAUSE" }, 100)
+    .press({ kind: "RESUME" }, 60);
+  assert.equal(x.result().state.phase, "run");
+  assert.equal(
+    sec(x.result(x.presses.at(-1)!.at + 20_000).totals.startRun),
+    120,
+  );
+  assert.throws(() => x.press({ kind: "TRANSITION" }), InvalidPress);
+  assert.throws(() => x.press({ kind: "HIT" }), InvalidPress);
+
+  x.press({ kind: "CHANGE_STATION", stationId: "S3" }, 50);
+  const { state, totals } = x.result();
+  assert.equal(state.stationId, "S3");
+  assert.equal(sec(totals.startRun), 150);
+  assert.equal(sec(totals.total), 150);
+});
+
+test("START normal: sense run inicial", () => {
+  const { totals } = session(solo)
+    .press({ kind: "START" })
+    .press({ kind: "FINISHED" }, 10)
+    .result();
+  assert.equal(totals.startRun, undefined);
+  assert.equal(sec(totals.teamStation.S1), 10);
+});

@@ -22,6 +22,8 @@ export type LoadedSession = {
   stationNames: Record<string, string>;
   /** "1000 m - 25 kg": distància i pes del mestre d'estacions (buit si no n'hi ha). */
   stationDetails: Record<string, string>;
+  /** "1000 m", "100 reps": només la distància o les repeticions (botons). */
+  stationDistances: Record<string, string>;
   presses: Press[];
   status: SessionStatus;
 };
@@ -110,6 +112,9 @@ export async function loadSession(
         x.id,
         [x.distance, x.weight].filter(Boolean).join(" - "),
       ]),
+    ),
+    stationDistances: Object.fromEntries(
+      (st ?? []).flatMap((x) => (x.distance ? [[x.id, x.distance]] : [])),
     ),
     presses,
     status: statusOf(presses, s.closed_at),

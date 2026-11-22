@@ -2,8 +2,30 @@
 
 ## Estat
 En producció a **https://hyrox.ddns.net**, versió `f238982` (comprovat a
-`/api/health` el 22/11/2026). És el darrer commit de `master`: no hi ha res
-pendent de desplegar. Especificació: versió 1.5 (`01_Functional_Specification.md`).
+`/api/health` el 22/11/2026). Especificació: versió 1.6
+(`01_Functional_Specification.md`).
+
+## ⚠️ Pendent de desplegar: versió 1.6 (22/11/2026)
+Sense migració: el START del run inicial es guarda sense estació ni
+participant, i les dues columnes ja admeten null. Només cal `./deploy.sh`.
+Fet i provat en local (47 tests, tsc, eslint). **No provat al navegador**
+(cal iniciar sessió amb un compte de l'app). Provar al mòbil: START RUN →
+fons verd, "Run inicial" i "després: SkiErg · 1000 m"; ROXZONE desactivat;
+NEXT ST porta a SkiErg amb el participant 1; resultats, correu i CSV amb
+"Run inicial" a dalt; els botons NEXT ST amb la distància o les repeticions.
+
+Què hi ha:
+- **START RUN** (`{ kind: "START", run: true }`): pulsació START sense
+  `station_id`. El motor entra a la fase `run` amb `stationId: null`; el tram
+  va a `totals.startRun` i compta al total. `nextStationAfter(null)` és la
+  primera estació. ROXZONE, canvi de participant i hits no es poden prémer.
+  Les sessions antigues no canvien: els seus START sempre tenen estació.
+- La sincronització sense connexió (`sync.ts`) reconstrueix el START amb o
+  sense run segons si té estació.
+- Resultats: línia `startRun` ("Run inicial") abans de les estacions; al CSV,
+  tipus "Run inicial".
+- `LoadedSession.stationDistances` (només el camp `distance`): el botó NEXT ST
+  mostra "NEXT ST - Sled Push · 50 m", i el START RUN, la primera estació.
 
 | Fase | Què |
 |---|---|
@@ -157,7 +179,7 @@ sempre abans de desplegar el codi que la necessita.**
 ## Proves locals
 - `web/.env.local` (no és al git) amb SUPABASE_URL, SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY, GMAIL_USER, GMAIL_APP_PASSWORD.
-- `npm --prefix web run dev -- -p 3100`, `npm --prefix web test` (42 tests,
+- `npm --prefix web run dev -- -p 3100`, `npm --prefix web test` (47 tests,
   tots passen el 22/11/2026).
 - Per provar sessions sense enviar correus reals: participant temporal amb
   l'adreça del Gmail de l'operador, i esborrar-lo després.

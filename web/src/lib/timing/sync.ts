@@ -49,6 +49,7 @@ function actionOf(p: Press): Action {
     return { kind: "SWITCH", participantId: p.participantId ?? "" };
   if (p.kind === "CHANGE_STATION")
     return { kind: "CHANGE_STATION", stationId: p.stationId ?? "" };
+  if (p.kind === "START") return { kind: "START", run: !p.stationId };
   return { kind: p.kind } as Action;
 }
 

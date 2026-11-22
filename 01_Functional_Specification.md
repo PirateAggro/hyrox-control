@@ -4,7 +4,7 @@
 # Hyrox Controller System (Hyrox Control)
 ## Functional Specification
 
-**Version:** 1.5 (17/10/2026)
+**Version:** 1.6 (22/11/2026)
 
 ---
 
@@ -60,7 +60,7 @@ Master Data (participants i estacions)
    ↓
 Nova sessió: selecció de participants i ordre
    ↓
-Pantalla de Control → START
+Pantalla de Control → START (o START RUN: primer es corre)
    ↓
 Estació 1
    ↓
@@ -177,7 +177,10 @@ Estil Apple (iOS), pensat per fer-se servir amb el mòbil mentre es corre:
 
 ## Procés
 
-Es comença a comptar el temps quan es prem el botó **START**. El Hyrox comença a la primera estació, amb el participant número 1 (no hi ha run ni roxzone inicials).
+Es comença a comptar el temps quan es prem un dels dos botons d'inici:
+
+- **START:** el Hyrox comença a la primera estació, amb el participant número 1.
+- **START RUN:** el Hyrox comença corrent (**Run inicial**). El botó mostra la primera estació ("Després: SkiErg · 1000 m"). Durant el run inicial no hi ha cap participant actiu ni es pot prémer ROXZONE (la Roxzone és d'una estació); NEXT STATION porta a la primera estació, amb el participant número 1, i CHANGE STATION a l'estació que es triï. També es pot prémer PAUSA i HYROX FINISHED. El temps queda a "Run inicial", que no és de cap estació.
 
 El temps es compta en 3 nivells:
 
@@ -207,7 +210,7 @@ Quan s'acaba una estació es pot prémer ROXZONE, RUN, NEXT STATION o CHANGE STA
 - Comença el comptador de Run, associat a l'estació ("Run – SkiErg").
 - Des d'un RUN es pot tornar a ROXZONE: el temps s'acumula a la Roxzone de la mateixa estació.
 
-**NEXT STATION:** passa a l'estació següent segons l'ordre, començant pel participant número 1. El botó mostra "NEXT ST - <nom de l'estació següent>".
+**NEXT STATION:** passa a l'estació següent segons l'ordre, començant pel participant número 1. El botó mostra el nom de l'estació següent amb la distància o les repeticions: "NEXT ST - Sled Push · 50 m", "NEXT ST - Wall Balls · 100 reps" (el camp Distància de l'estació; el pes no).
 
 **CHANGE STATION:** mostra la llista de totes les estacions de la sessió (amb distància i pes) i l'operador tria la següent, que comença pel participant número 1. A partir d'aquí l'ordre continua de manera seqüencial. Les estacions que no es facin no hi seran. Es pot triar una estació anterior: en aquest cas s'acumulen els temps de l'estació i de la seva Roxzone i Run.
 
@@ -272,6 +275,8 @@ Si a l'última estació s'han comptat hits, després de la línia d'Equip (o de 
 
 Si a una estació s'ha fet servir PARTICIPANT TRANSITION, després de la línia d'Equip hi ha la línia `CANVI PARTICIPANT - PROVA n`.
 
+Si la sessió ha començat amb START RUN, la primera línia és `RUN INICIAL`.
+
 Les línies de Roxzone i Run només hi surten si s'han fet. A la pantalla els temps es mostren truncats al segon (com un cronòmetre); al CSV hi ha els segons exactes.
 
 ---
@@ -303,7 +308,7 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 
 - Separador `;`, decimals amb coma, UTF-8 amb BOM.
 - Columnes: `Tipus;Participant;Estació;Segons;Temps;Hits`.
-- Tipus: Prova, Equip, Canvi participant, Hits, Roxzone, Run, Total proves, Total Hyrox.
+- Tipus: Run inicial, Prova, Equip, Canvi participant, Hits, Roxzone, Run, Total proves, Total Hyrox.
 - Les línies de tipus Hits deixen buits Segons i Temps i porten el recompte a la columna Hits.
 - Segons amb mil·lèsimes (per exemple `21,653`) i temps en format de cronòmetre (`0:21`).
 
@@ -319,6 +324,10 @@ En acabar una sessió **no s'envia cap correu automàticament**. La pantalla de 
 ---
 
 # Historial de canvis
+
+**1.6 (22/11/2026)**
+- La sessió pot començar corrent (**START RUN**): després del run inicial es va a la primera estació. Línia "Run inicial" als resultats, al correu i al CSV.
+- El botó NEXT STATION mostra la distància o les repeticions de l'estació següent.
 
 **1.5 (17/10/2026)**
 - Sense connexió la sessió continua: les pulsacions es guarden al mòbil i s'envien al servidor quan torna la connexió. Després es poden enviar els correus.

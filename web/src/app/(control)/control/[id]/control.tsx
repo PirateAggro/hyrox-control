@@ -8,6 +8,7 @@ import {
   buildPress,
   hitsOf,
   InvalidPress,
+  nextStationAfter,
   replay,
   type Action,
   type Press,
@@ -52,7 +53,9 @@ function backgroundKind(presses: Press[]) {
   let beforePause: PressKind | null = null;
   let beforeHandover: PressKind | null = null;
   for (const p of presses) {
-    if (p.kind === "PAUSE") {
+    // START sense estació: la sessió comença corrent.
+    if (p.kind === "START" && !p.stationId) current = "RUN";
+    else if (p.kind === "PAUSE") {
       beforePause = current;
       current = "PAUSE";
     } else if (p.kind === "RESUME") current = beforePause;
@@ -138,7 +141,11 @@ function Live({
     participantNames: pName,
     stationNames: sName,
     stationDetails,
+    stationDistances,
   } = session;
+  /** "SkiErg · 1000 m": nom de la prova amb la distància o les repeticions. */
+  const stationLabel = (s: string) =>
+    stationDistances[s] ? `${sName[s]} · ${stationDistances[s]}` : sName[s];
 
   const [presses, setPresses] = useState<Press[]>(initial);
   // Quantes pulsacions té guardades el servidor; la resta són pendents.
@@ -337,11 +344,14 @@ function Live({
   // §5: a l'última estació, cada participant té el seu comptador de hits.
   const lastStation = st !== null && st === ctx.stations.at(-1);
   const stationIndex = st ? ctx.stations.indexOf(st) + 1 : 0;
-  // L'índex de l'estació actual comptat des d'1 és la posició de la següent.
-  const nextSt = st ? (ctx.stations[stationIndex] ?? null) : null;
+  // Després del run inicial (sense estació), la següent és la primera.
+  const nextSt = nextStationAfter(st, ctx);
+  const startRun = st === null && state.phase === "run";
   const phaseTime =
     st === null
-      ? 0
+      ? startRun
+        ? totals.startRun
+        : 0
       : state.phase === "station"
         ? totals.teamStation[st]
         : state.phase === "handover"
@@ -384,6 +394,18 @@ function Live({
         >
           START
         </button>
+        {/* També es pot començar corrent; després del run, la primera prova. */}
+        <button
+          onClick={() => sendWithBeep({ kind: "START", run: true })}
+          disabled={pending || !allowed.start}
+          className={`${bigButton} h-16 flex-col leading-tight`}
+          style={{ backgroundColor: COLORS.RUN.solid, color: COLORS.RUN.text }}
+        >
+          <span>START RUN</span>
+          <span className="text-sm font-medium opacity-90">
+            Després: {stationLabel(ctx.stations[0])}
+          </span>
+        </button>
         {message && <p className="text-sm text-danger">{message}</p>}
         <Link href="/" className="text-center text-[15px] text-tint">
           Cancel·lar
@@ -422,7 +444,7 @@ function Live({
     },
     {
       kind: "NEXT_STATION",
-      label: nextSt ? `NEXT ST - ${sName[nextSt]}` : "NEXT STATION",
+      label: nextSt ? `NEXT ST - ${stationLabel(nextSt)}` : "NEXT STATION",
       enabled: allowed.next,
       onPress: () => sendWithBeep({ kind: "NEXT_STATION" }),
     },
@@ -452,7 +474,11 @@ function Live({
         </div>
         <div className="rounded-2xl bg-card/80 p-3">
           <p className="text-xs text-muted">
-            {state.paused ? "En pausa" : PHASE_LABEL[state.phase]}
+            {state.paused
+              ? "En pausa"
+              : startRun
+                ? "Run inicial"
+                : PHASE_LABEL[state.phase]}
           </p>
           <p className="font-mono text-3xl font-semibold tabular-nums">
             {formatDuration(phaseTime ?? 0)}
@@ -461,14 +487,26 @@ function Live({
       </section>
 
       {/* Estació, distància i pes en una sola línia. */}
-      <p className="truncate px-1 text-lg">
-        <span className="font-semibold">
-          {stationIndex} · {st ? sName[st] : ""}
-        </span>
-        {st && stationDetails[st] && (
-          <span className="text-muted"> · {stationDetails[st]}</span>
-        )}
-      </p>
+      {st ? (
+        <p className="truncate px-1 text-lg">
+          <span className="font-semibold">
+            {stationIndex} · {sName[st]}
+          </span>
+          {stationDetails[st] && (
+            <span className="text-muted"> · {stationDetails[st]}</span>
+          )}
+        </p>
+      ) : (
+        <p className="truncate px-1 text-lg">
+          <span className="font-semibold">Run inicial</span>
+          {nextSt && (
+            <span className="text-muted">
+              {" "}
+              · després: {stationLabel(nextSt)}
+            </span>
+          )}
+        </p>
+      )}
 
       {/* Participants, un sota l'altre: tocar-ne un el fa actiu (§5). A
           l'última estació el nom ocupa la meitat i l'altra meitat és el

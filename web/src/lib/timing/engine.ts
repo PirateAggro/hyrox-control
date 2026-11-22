@@ -37,6 +37,11 @@
  * surt tocant un participant (SWITCH), que pot ser qualsevol, també el
  * mateix d'abans; a partir d'aquí torna a comptar el seu temps.
  *
+ * RUN INICIAL: la sessió pot començar corrent (START sense estació). El tram
+ * no és de cap estació: va a `totals.startRun` ("Run inicial"). Des d'aquí,
+ * NEXT STATION porta a la primera estació (o CHANGE STATION a la que es triï);
+ * ROXZONE no, perquè la Roxzone és d'una estació.
+ *
  * PAUSA atura tots els comptadors: tanca el tram obert i no n'obre cap fins a
  * RESUME, que en torna a obrir un de la mateixa fase, estació i participant. El
  * temps de pausa no compta enlloc, ni al total: el total és la suma de trams.
@@ -100,6 +105,8 @@ export type Totals = {
   /** participant → estació → ms */
   participantStation: Record<string, ByKey>;
   teamStation: ByKey;
+  /** Run abans de la primera estació (START amb run); undefined si no n'hi ha. */
+  startRun?: number;
   /** Canvis de participant (HANDOVER) per estació; també són a teamStation. */
   handover: ByKey;
   transition: ByKey;
@@ -151,8 +158,13 @@ function add(map: ByKey, key: string, ms: number) {
 
 /** Suma el tram obert (de segmentStart fins a `until`) als totals. */
 function closeSegment(state: State, totals: Totals, until: number) {
-  if (state.segmentStart === null || state.stationId === null) return;
+  if (state.segmentStart === null) return;
   const ms = until - state.segmentStart;
+  if (state.stationId === null) {
+    // Només el run inicial no té estació.
+    if (state.phase === "run") totals.startRun = (totals.startRun ?? 0) + ms;
+    return;
+  }
   const s = state.stationId;
   if (state.phase === "station" && state.participantId) {
     const perStation = (totals.participantStation[state.participantId] ??= {});
@@ -238,7 +250,8 @@ export function allowedActions(state: State, ctx: SessionContext) {
     case "run":
       return {
         ...none,
-        transition: true,
+        // Run inicial: encara no hi ha estació per a una Roxzone.
+        transition: state.stationId !== null,
         next: nextStationAfter(state.stationId, ctx) !== null,
         change: true,
         pause: true,
@@ -247,8 +260,13 @@ export function allowedActions(state: State, ctx: SessionContext) {
   }
 }
 
-function nextStationAfter(stationId: string | null, ctx: SessionContext) {
-  const i = stationId === null ? -1 : ctx.stations.indexOf(stationId);
+/** Estació següent; després del run inicial (sense estació), la primera. */
+export function nextStationAfter(
+  stationId: string | null,
+  ctx: SessionContext,
+) {
+  if (stationId === null) return ctx.stations[0] ?? null;
+  const i = ctx.stations.indexOf(stationId);
   if (i < 0) return null;
   return ctx.stations[i + 1] ?? null;
 }
@@ -291,10 +309,17 @@ export function applyPress(
   switch (press.kind) {
     case "START":
       if (!allowed.start) fail("START no està permès ara");
-      return {
-        ...enterStation(press.stationId ?? ctx.stations[0]),
-        startedAt: press.at,
-      };
+      // Sense estació: la sessió comença amb el run inicial.
+      if (!press.stationId)
+        return {
+          ...base,
+          phase: "run",
+          stationId: null,
+          participantId: null,
+          startedAt: press.at,
+          segmentStart: press.at,
+        };
+      return { ...enterStation(press.stationId), startedAt: press.at };
 
     case "SWITCH":
       if (
@@ -408,7 +433,10 @@ export function replay(presses: Press[], ctx: SessionContext, now?: number) {
   // Suma de trams: el temps en pausa no hi és.
   const sum = (m: ByKey) => Object.values(m).reduce((a, b) => a + b, 0);
   totals.total =
-    sum(totals.teamStation) + sum(totals.transition) + sum(totals.run);
+    (totals.startRun ?? 0) +
+    sum(totals.teamStation) +
+    sum(totals.transition) +
+    sum(totals.run);
 
   return { state, totals };
 }
@@ -419,7 +447,8 @@ export function replay(presses: Press[], ctx: SessionContext, now?: number) {
  * sobre una còpia: si no és permesa, llança InvalidPress.
  */
 export type Action =
-  | { kind: "START" }
+  /** `run`: comença corrent, abans de la primera estació. */
+  | { kind: "START"; run?: boolean }
   | { kind: "SWITCH"; participantId: string }
   | { kind: "TRANSITION" }
   | { kind: "RUN" }
@@ -442,6 +471,7 @@ export function buildPress(
 
   switch (action.kind) {
     case "START":
+      if (action.run) break; // Sense estació ni participant: run inicial.
       press.stationId = ctx.stations[0];
       press.participantId = ctx.participants[0];
       break;

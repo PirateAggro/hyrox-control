@@ -1,6 +1,7 @@
 /**
  * Línies de resultats en l'ordre de l'exemple del §5:
  *
+ *   Run inicial                      (si la sessió ha començat corrent)
  *   per cada estació visitada (en l'ordre de la visita):
  *     <participant> – <estació>      (cada participant)
  *     Equip – <estació>              (només en mode equip)
@@ -19,6 +20,7 @@ import type { SessionContext, Totals } from "./engine.ts";
 
 export type SummaryRow = {
   kind:
+    | "startRun"
     | "participant"
     | "team"
     | "handover"
@@ -48,6 +50,9 @@ export function summaryRows(
   const rows: SummaryRow[] = [];
   const pName = (id: string) => names.participants[id] ?? "?";
   const sName = (id: string) => names.stations[id] ?? "?";
+
+  if (totals.startRun !== undefined)
+    rows.push({ kind: "startRun", label: "Run inicial", ms: totals.startRun });
 
   for (const st of totals.stationOrder) {
     for (const p of ctx.participants) {
